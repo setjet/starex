@@ -43,6 +43,94 @@ pub struct Game {
     pub backup_saves: bool,
     #[serde(default)]
     pub last_scan: Option<ScanSummary>,
+    /// The user's own labels, e.g. "Ported" or "Co-op".
+    #[serde(default)]
+    pub tags: Vec<String>,
+    /// Left out of the library unless the Hidden filter is on.
+    #[serde(default)]
+    pub hidden: bool,
+    /// The user has finished the game.
+    #[serde(default)]
+    pub completed: bool,
+    /// Past play sessions, oldest first, at most [`MAX_HISTORY`].
+    #[serde(default)]
+    pub history: Vec<PlaySession>,
+    /// Alternative ways to start the game (e.g. DX11, DX12, modded).
+    #[serde(default)]
+    pub profiles: Vec<LaunchProfile>,
+    /// The profile Play uses; `None` is the game's own launch settings.
+    #[serde(default)]
+    pub active_profile: Option<String>,
+    /// Description, genres and more from IGDB.
+    #[serde(default)]
+    pub details: Option<GameDetails>,
+    /// Show this game on the user's Discord profile while it runs.
+    #[serde(default = "yes")]
+    pub show_on_discord: bool,
+    /// A firewall rule blocks the game's programs from going online.
+    #[serde(default)]
+    pub offline: bool,
+}
+
+/// How many past sessions a game keeps.
+pub const MAX_HISTORY: usize = 500;
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PlaySession {
+    pub start: u64,
+    pub end: u64,
+}
+
+/// A named variation of how a game starts. Empty fields fall back to the game's own settings.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LaunchProfile {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub launch_args: String,
+    #[serde(default)]
+    pub executable: Option<PathBuf>,
+    #[serde(default)]
+    pub env: Vec<EnvVar>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct GameDetails {
+    pub igdb_id: Option<u64>,
+    pub summary: Option<String>,
+    #[serde(default)]
+    pub genres: Vec<String>,
+    /// Unix seconds.
+    pub release_date: Option<i64>,
+    pub developer: Option<String>,
+    /// Typical time to finish the main story, in seconds.
+    pub time_to_beat: Option<u64>,
+    /// Time to complete everything, in seconds.
+    pub time_to_complete: Option<u64>,
+    pub url: Option<String>,
+}
+
+impl Game {
+    /// This game as the given launch profile starts it: the profile's options, executable and
+    /// environment replace the game's own where set.
+    pub fn with_profile(&self, profile_id: Option<&str>) -> Game {
+        let mut game = self.clone();
+        let Some(profile) = profile_id.and_then(|id| self.profiles.iter().find(|p| p.id == id)) else {
+            return game;
+        };
+        game.launch_args = profile.launch_args.clone();
+        if let Some(exe) = &profile.executable {
+            game.executable = exe.clone();
+        }
+        for var in &profile.env {
+            game.env.retain(|v| v.key != var.key);
+            game.env.push(var.clone());
+        }
+        game
+    }
 }
 
 fn yes() -> bool {
@@ -152,6 +240,14 @@ pub struct GamePatch {
     #[serde(default, with = "double_option")]
     pub save_dir: Option<Option<PathBuf>>,
     pub backup_saves: Option<bool>,
+    pub tags: Option<Vec<String>>,
+    pub hidden: Option<bool>,
+    pub completed: Option<bool>,
+    pub profiles: Option<Vec<LaunchProfile>>,
+    /// `Some(None)` returns to the game's own launch settings.
+    #[serde(default, with = "double_option")]
+    pub active_profile: Option<Option<String>>,
+    pub show_on_discord: Option<bool>,
 }
 
 mod double_option {

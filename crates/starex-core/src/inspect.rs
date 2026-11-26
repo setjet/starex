@@ -67,6 +67,64 @@ const SKIP_EXE: &[&str] = &[
     "redist",
 ];
 
+/// Words that mark a batch file as the game's launcher.
+const LAUNCH_WORDS: &[&str] = &["launch", "launcher", "start", "play", "run", "game"];
+
+/// Release-group and packaging tags found at the end of downloaded folder names. They are not
+/// part of the game's name, so they are dropped before looking the game up.
+const RELEASE_TAGS: &[&str] = &[
+    "rune",
+    "codex",
+    "plaza",
+    "skidrow",
+    "reloaded",
+    "flt",
+    "fairlight",
+    "hoodlum",
+    "tenoke",
+    "empress",
+    "cpy",
+    "darksiders",
+    "razor1911",
+    "prophet",
+    "goldberg",
+    "elamigos",
+    "dodi",
+    "fitgirl",
+    "repack",
+    "repacks",
+    "gog",
+    "steamrip",
+    "kaos",
+    "tinyiso",
+    "p2p",
+    "proper",
+    "internal",
+    "cracked",
+    "crack",
+    "cracks",
+    "multi",
+    "x64",
+    "x86",
+    "win64",
+    "win32",
+    "dlc",
+    "dlcs",
+    "incl",
+    "hotfix",
+    "rip",
+    "iso",
+    "rg",
+    "xatab",
+    "chovka",
+    "decepticon",
+    "anadius",
+    "onlinefix",
+    "egs",
+    "drmfree",
+    "drm",
+];
+
 /// Words that make an executable less likely to be the one to start.
 const DEMOTE_WORDS: &[&str] = &[
     "server",
@@ -185,6 +243,9 @@ pub fn inspect_folder(root: &Path) -> std::io::Result<FolderInspection> {
     let mut exes: Vec<(PathBuf, u64, usize)> = Vec::new();
     let mut art = ArtCollector::default();
     let mut xvc = false;
+    // A repack or installer: `setup.exe` next to its compressed `.bin` archives.
+    let mut root_setup = false;
+    let mut root_bins = 0u32;
 
     let mut walker = WalkDir::new(root)
         .follow_links(false)
@@ -215,8 +276,23 @@ pub fn inspect_folder(root: &Path) -> std::io::Result<FolderInspection> {
             .extension()
             .map(|e| e.to_string_lossy().to_ascii_lowercase())
             .unwrap_or_default();
+        if entry.depth() == 1 {
+            let stem = path
+                .file_stem()
+                .map(|s| s.to_string_lossy().to_ascii_lowercase())
+                .unwrap_or_default();
+            if ext == "exe" && stem == "setup" {
+                root_setup = true;
+            } else if ext == "bin" {
+                root_bins += 1;
+            }
+        }
         match ext.as_str() {
             "exe" if entry.depth() <= EXE_DEPTH && !is_skipped_exe(path) => {
+                exes.push((path.to_path_buf(), size, entry.depth()));
+            }
+            // Ports and fan patches often start through a batch file.
+            "bat" | "cmd" if cfg!(windows) && entry.depth() <= EXE_DEPTH && !is_skipped_exe(path) => {
                 exes.push((path.to_path_buf(), size, entry.depth()));
             }
             _ if !cfg!(windows)
@@ -261,7 +337,12 @@ pub fn inspect_folder(root: &Path) -> std::io::Result<FolderInspection> {
 
     let mut notes = Vec::new();
     let runnable = candidates.iter().any(|c| c.runnable);
+    let installer = root_setup && root_bins > 0 && !candidates.iter().any(|c| c.runnable && c.score > 0);
     match package {
+        Some(PackageKind::XboxContainer) if runnable => notes.push(Note::new(
+            NoteLevel::Info,
+            "This folder also holds Xbox console files (.xvc). Starex ignores them and starts the Windows program.",
+        )),
         Some(PackageKind::XboxContainer) => notes.push(Note::new(
             NoteLevel::Error,
             "This folder holds Xbox console containers (.xvc). Only an Xbox can open them; Starex can launch Windows executables only.",
@@ -284,10 +365,19 @@ pub fn inspect_folder(root: &Path) -> std::io::Result<FolderInspection> {
     let explained = !runnable && matches!(package, Some(PackageKind::XboxContainer | PackageKind::MicrosoftGdk));
     if explained {
         // Nothing to add.
+    } else if installer {
+        notes.push(Note::new(
+            NoteLevel::Error,
+            "This looks like a game installer (setup.exe with .bin archives), so install the game first. Then add the folder it installs to.",
+        ));
     } else if candidates.is_empty() {
         notes.push(Note::new(
             NoteLevel::Error,
-            "No executable (.exe) was found in this folder.",
+            if cfg!(windows) {
+                "No program (.exe or .bat) was found in this folder."
+            } else {
+                "No program was found in this folder."
+            },
         ));
     } else if !runnable {
         let encrypted = candidates.iter().any(|c| c.problem == Some(PeProblem::NotExecutable));
@@ -304,7 +394,7 @@ pub fn inspect_folder(root: &Path) -> std::io::Result<FolderInspection> {
     {
         notes.push(Note::new(
             NoteLevel::Info,
-            "This is a Windows game. Starex runs it through Wine, so Wine needs to be installed (see Settings > General).",
+            "This is a Windows game. Starex runs it through Wine, so Wine needs to be installed (see Settings > Games).",
         ));
     } else if candidates
         .iter()
@@ -421,6 +511,9 @@ fn score_candidate(
     if stem_key.ends_with("shipping") {
         score += 5;
     }
+    if binary::is_batch(&path) && stem_words.iter().any(|w| LAUNCH_WORDS.contains(&w.as_str())) {
+        score += 10;
+    }
 
     let (format, arch, subsystem, problem, host, runnable) = match binary::probe(&path) {
         Ok(info) => {
@@ -471,9 +564,22 @@ fn score_candidate(
 
 /// "grand_theft-auto.VI" -> "Grand Theft Auto VI".
 fn pretty_name(folder: &str) -> String {
-    let spaced: String = folder
+    let cleaned = clean_release_name(folder);
+    let source = if cleaned.trim().is_empty() {
+        folder
+    } else {
+        cleaned.as_str()
+    };
+    // Names with spaces keep their dots and hyphens ("Half-Life 2", "S.T.A.L.K.E.R. 2");
+    // dotted or underscored names ("Elden.Ring", "grand_theft-auto") use them as spaces.
+    let scene_style = !source.contains(' ');
+    let spaced: String = source
         .chars()
-        .map(|c| if matches!(c, '_' | '-' | '.') { ' ' } else { c })
+        .map(|c| match c {
+            '_' => ' ',
+            '-' | '.' if scene_style => ' ',
+            c => c,
+        })
         .collect();
     let parts: Vec<&str> = spaced.split_whitespace().collect();
     if parts.is_empty() {
@@ -495,6 +601,110 @@ fn pretty_name(folder: &str) -> String {
         })
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// Drops what downloaded folder names add around a game's name: bracketed tags
+/// (`[FitGirl Repack]`, `(GOG)`), and trailing versions, build numbers and release groups
+/// (`.v1.12-RUNE`, `Build.12345-TENOKE`). Parentheses that are not tags, like `(Test)`, stay.
+fn clean_release_name(folder: &str) -> String {
+    // 1. Bracketed parts: [..] and {..} always, (..) only when everything inside is a tag.
+    let mut kept = String::new();
+    let mut chars = folder.chars().peekable();
+    while let Some(c) = chars.next() {
+        let close = match c {
+            '[' => ']',
+            '{' => '}',
+            '(' => ')',
+            _ => {
+                kept.push(c);
+                continue;
+            }
+        };
+        let mut inner = String::new();
+        let mut closed = false;
+        for d in chars.by_ref() {
+            if d == close {
+                closed = true;
+                break;
+            }
+            inner.push(d);
+        }
+        let all_tags = inner
+            .split(|ch: char| !ch.is_alphanumeric() && ch != '.')
+            .filter(|w| !w.is_empty())
+            .all(|w| is_release_tag(w) || is_version(w) || is_year(w));
+        if c == '(' && closed && !all_tags {
+            kept.push('(');
+            kept.push_str(&inner);
+            kept.push(')');
+        } else if !closed {
+            kept.push(c);
+            kept.push_str(&inner);
+        } else {
+            kept.push(' ');
+        }
+    }
+
+    // 2. Trailing versions, build numbers and release groups.
+    let scene_style = !kept.trim().contains(' ');
+    let is_separator = |ch: char| ch == ' ' || ch == '_' || (scene_style && (ch == '.' || ch == '-'));
+    let mut words: Vec<&str> = kept.split(is_separator).filter(|w| !w.is_empty()).collect();
+    // A trailing " - Group" leaves a lone hyphen behind.
+    let numeric = |w: &str| !w.is_empty() && w.chars().all(|ch| ch.is_ascii_digit());
+    while let Some(last) = words.last().copied() {
+        let lower = last.to_ascii_lowercase();
+        if last == "-"
+            || is_release_tag(&lower)
+            || is_version(&lower)
+            || lower.starts_with("multi") && lower[5..].chars().all(|ch| ch.is_ascii_digit())
+        {
+            words.pop();
+            continue;
+        }
+        // A run of numbers after a version ("v1.12" split into "v1", "12") or after "Build".
+        if numeric(last) {
+            let mut start = words.len() - 1;
+            while start > 0 && numeric(words[start - 1]) {
+                start -= 1;
+            }
+            if start > 0 {
+                let prev = words[start - 1].to_ascii_lowercase();
+                if is_version(&prev) {
+                    words.truncate(start);
+                    continue;
+                }
+                if prev == "build" || prev == "update" {
+                    words.truncate(start - 1);
+                    continue;
+                }
+            }
+        }
+        break;
+    }
+    let joined = words.join(if scene_style { "." } else { " " });
+    joined
+        .trim_matches(|ch: char| ch == '-' || ch == ' ' || (scene_style && ch == '.'))
+        .to_owned()
+}
+
+fn is_release_tag(word: &str) -> bool {
+    let lower = word.to_ascii_lowercase();
+    RELEASE_TAGS.contains(&lower.as_str())
+}
+
+/// `v1`, `v1.12`, `V2.0.3`, or a dotted number like `1.0.2`.
+fn is_version(word: &str) -> bool {
+    let lower = word.to_ascii_lowercase();
+    let digits = lower.strip_prefix('v').unwrap_or(&lower);
+    let dotted = digits.contains('.');
+    !digits.is_empty()
+        && digits.starts_with(|ch: char| ch.is_ascii_digit())
+        && digits.chars().all(|ch| ch.is_ascii_digit() || ch == '.')
+        && (lower.starts_with('v') || dotted)
+}
+
+fn is_year(word: &str) -> bool {
+    word.len() == 4 && word.chars().all(|ch| ch.is_ascii_digit()) && (word.starts_with("19") || word.starts_with("20"))
 }
 
 /// Reads `DefaultDisplayName` from a GDK `MicrosoftGame.config` without a full XML parser.
@@ -581,6 +791,63 @@ mod tests {
         assert_eq!(found.file_count, 4);
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn offers_batch_launchers() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("GTA IV PC Port");
+        fs::create_dir_all(root.join("Game")).unwrap();
+        let mut big = fake_pe(0x8664, 2);
+        big.resize(4 * 1_048_576, 0);
+        fs::write(root.join("Game/GTAIV.exe"), &big).unwrap();
+        fs::write(root.join("Launch.bat"), "@echo off\r\nstart Game\\GTAIV.exe\r\n").unwrap();
+        fs::write(root.join("uninstall.bat"), "@echo off\r\n").unwrap();
+
+        let found = inspect_folder(&root).unwrap();
+        assert_eq!(found.candidates[0].relative, "Game/GTAIV.exe");
+        let bat = found
+            .candidates
+            .iter()
+            .find(|c| c.relative == "Launch.bat")
+            .expect("batch offered");
+        assert!(bat.runnable);
+        assert!(found.candidates.iter().all(|c| c.relative != "uninstall.bat"));
+    }
+
+    #[test]
+    fn explains_uninstalled_repacks() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("Hollow Knight [FitGirl Repack]");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("setup.exe"), fake_pe(0x014c, 2)).unwrap();
+        fs::write(root.join("fg-01.bin"), [0u8; 64]).unwrap();
+
+        let found = inspect_folder(&root).unwrap();
+        assert_eq!(found.suggested_name, "Hollow Knight");
+        assert!(
+            found.notes.iter().any(|n| n.text.contains("installer")),
+            "{:?}",
+            found.notes
+        );
+    }
+
+    #[test]
+    fn ignores_stray_console_files_next_to_a_program() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("Port");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("Port.exe"), fake_pe(0x8664, 2)).unwrap();
+        fs::write(root.join("leftover.xvc"), b"xvc").unwrap();
+
+        let found = inspect_folder(&root).unwrap();
+        assert!(found.candidates[0].runnable);
+        assert!(
+            found.notes.iter().all(|n| n.level != NoteLevel::Error),
+            "{:?}",
+            found.notes
+        );
+    }
+
     #[test]
     fn flags_encrypted_console_builds() {
         let dir = tempfile::tempdir().unwrap();
@@ -606,5 +873,24 @@ mod tests {
         assert_eq!(pretty_name("grand_theft-auto.vi"), "Grand Theft Auto Vi");
         assert_eq!(pretty_name("DOOM Eternal"), "DOOM Eternal");
         assert_eq!(pretty_name("___"), "New game");
+    }
+
+    #[test]
+    fn cleans_release_style_names() {
+        assert_eq!(pretty_name("Elden.Ring.v1.12-RUNE"), "Elden Ring");
+        assert_eq!(pretty_name("Hollow Knight [FitGirl Repack]"), "Hollow Knight");
+        assert_eq!(pretty_name("Cyberpunk.2077.v2.1-GOG"), "Cyberpunk 2077");
+        assert_eq!(pretty_name("Some.Game.Build.12345-TENOKE"), "Some Game");
+        assert_eq!(pretty_name("Elden Ring v1.12 (GOG)"), "Elden Ring");
+        assert_eq!(pretty_name("Hades.II.MULTi12-ElAmigos"), "Hades II");
+        assert_eq!(pretty_name("Prey (2017) [DODI Repack]"), "Prey");
+        assert_eq!(pretty_name("Stardew_Valley_v1.6.9_GOG"), "Stardew Valley");
+        // Names that are not release-style stay as they are.
+        assert_eq!(pretty_name("Half-Life 2"), "Half-Life 2");
+        assert_eq!(pretty_name("S.T.A.L.K.E.R. 2"), "S.T.A.L.K.E.R. 2");
+        assert_eq!(pretty_name("GTA IV PC Port"), "GTA IV PC Port");
+        assert_eq!(pretty_name("Portal 2"), "Portal 2");
+        assert_eq!(pretty_name("ゲーム Ünïcødé & (Test)"), "ゲーム Ünïcødé & (Test)");
+        assert_eq!(pretty_name("DOOM Eternal"), "DOOM Eternal");
     }
 }

@@ -3,10 +3,17 @@
 
 mod artwork;
 mod commands;
+mod details;
+mod discord;
+mod firewall;
+mod releases;
+mod savedb;
 mod sessions;
+mod shortcuts;
 mod state;
+mod system;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager, WindowEvent};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use crate::state::AppState;
@@ -22,14 +29,23 @@ fn main() {
 
     #[cfg(desktop)]
     let builder = builder
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            // A second launch focuses the window that is already open.
-            if let Some(window) = app.get_webview_window("main") {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // A second launch from a game shortcut starts that game in the Starex already open;
+            // any other second launch focuses its window.
+            if let Some(id) = shortcuts::requested_game(args) {
+                let _ = app.emit(commands::PLAY_EVENT, id);
+            } else if let Some(window) = app.get_webview_window("main") {
                 let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_focus();
             }
         }))
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            Some(vec![system::START_HIDDEN_ARG]),
+        ))
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build());
 
     let result = builder
@@ -62,8 +78,55 @@ fn main() {
             };
             // Artwork lives in Starex's data folder; only that folder is served to the UI.
             app.asset_protocol_scope().allow_directory(&state.paths.artwork, true)?;
+            // Opened from a game shortcut or a starex:// link: start that game once the window is ready.
+            *state.launch_request() = shortcuts::requested_game(std::env::args());
             app.manage(state);
+
+            #[cfg(desktop)]
+            {
+                use tauri_plugin_deep_link::DeepLinkExt;
+                // Make starex:// links open this copy of Starex (installed builds register it too).
+                #[cfg(any(windows, target_os = "linux"))]
+                if let Err(e) = app.deep_link().register_all() {
+                    log::warn!("could not register starex:// links: {e}");
+                }
+                let handle = app.handle().clone();
+                app.deep_link().on_open_url(move |event| {
+                    for url in event.urls() {
+                        if let Some(id) = shortcuts::game_from_link(url.as_str()) {
+                            let _ = handle.emit(commands::PLAY_EVENT, id);
+                        }
+                    }
+                });
+            }
+
+            // Tray icon and the global shortcut from Settings.
+            #[cfg(desktop)]
+            {
+                if let Err(e) = system::create_tray(app.handle()) {
+                    log::warn!("could not create the tray icon: {e}");
+                }
+                let shortcut = app.state::<AppState>().settings().global_shortcut.clone();
+                if let Err(e) = system::apply_shortcut(app.handle(), &shortcut) {
+                    log::warn!("global shortcut not set: {e}");
+                }
+            }
+
+            // Fetch or refresh the save database in the background.
+            let handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = savedb::get(&handle).await;
+            });
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            // With "Keep Starex in the tray" on, closing the window hides it instead.
+            if let WindowEvent::CloseRequested { api, .. } = event
+                && window.app_handle().state::<AppState>().settings().close_to_tray
+            {
+                api.prevent_close();
+                let _ = window.hide();
+            }
         })
         .invoke_handler(tauri::generate_handler![
             commands::bootstrap,
@@ -90,6 +153,15 @@ fn main() {
             commands::list_save_backups,
             commands::backup_saves,
             commands::restore_saves,
+            commands::check_runtimes,
+            commands::install_runtime,
+            commands::create_shortcut,
+            commands::launch_link,
+            commands::take_launch_request,
+            commands::fetch_details,
+            commands::set_backdrop_image,
+            commands::set_offline,
+            commands::fetch_changelog,
         ])
         .run(tauri::generate_context!());
 

@@ -1,13 +1,13 @@
-import { FolderInput, Play, Plus } from "./icons";
+import { Play, Plus } from "./icons";
 import { For, Show } from "solid-js";
-import { playtime, timeAgo } from "../lib/format";
-import { launch, query, select, setDialog, store, visibleGames } from "../lib/store";
+import { generatedArt } from "../lib/art";
+import { timeAgo } from "../lib/format";
+import { launch, openContextMenu, query, select, setDialog, store, visibleGames } from "../lib/store";
 import { GameCover } from "./GameArt";
 import { StarMark } from "./StarMark";
 import { Button } from "./ui/Button";
 
 export function LibraryView() {
-  const totalPlaytime = () => store.games.reduce((sum, g) => sum + g.playtimeSecs, 0);
 
   return (
     <Show when={store.games.length > 0} fallback={<EmptyLibrary />}>
@@ -17,7 +17,6 @@ export function LibraryView() {
             <h1 class="library-title">Library</h1>
             <p class="library-subtitle">
               {store.games.length} {store.games.length === 1 ? "game" : "games"}
-              <Show when={totalPlaytime() > 0}> · {playtime(totalPlaytime())} played</Show>
             </p>
           </div>
           <Button variant="primary" icon={<Plus />} onClick={() => setDialog({ type: "add" })}>
@@ -27,12 +26,13 @@ export function LibraryView() {
 
         <Show
           when={visibleGames().length > 0}
-          fallback={<p class="library-no-results">No games match "{query()}".</p>}
+          fallback={<p class="library-no-results">{query() ? `No games match "${query()}".` : "No games in this view."}</p>}
         >
           <div class="library-grid">
             <For each={visibleGames()}>
               {(game, index) => (
                 <article
+                  onContextMenu={(e) => openContextMenu(game.id, e)}
                   class="library-card"
                   style={{ "--stagger": `${Math.min(index(), 12) * 24}ms` }}
                   data-running={store.running[game.id] ? "" : undefined}
@@ -73,21 +73,31 @@ export function LibraryView() {
   );
 }
 
+/** First run: a fan of covers previews the library this screen is waiting for. */
 function EmptyLibrary() {
   return (
-    <div class="empty page-enter">
-      <div class="empty-mark" aria-hidden="true">
-        <div class="empty-glow" />
-        <StarMark size={44} />
+    <div class="onboard">
+      <div class="onboard-fan" aria-hidden="true">
+        <div class="onboard-cover onboard-cover-left" style={{ background: generatedArt("Starex left") }} />
+        <div class="onboard-cover onboard-cover-right" style={{ background: generatedArt("Starex right") }} />
+        <div class="onboard-cover onboard-cover-center" style={{ background: generatedArt("Starex") }}>
+          <StarMark size={56} />
+        </div>
       </div>
-      <h1 class="empty-title">Your library is empty</h1>
-      <p class="empty-text">
-        Add a game folder and Starex finds the executable, checks the files and keeps track of your play time.
+
+      <h1 class="onboard-title">Build your library</h1>
+      <p class="onboard-text">
+        Point Starex at any game folder. It finds the game, checks every file and keeps your saves safe.
       </p>
-      <Button variant="primary" size="lg" icon={<FolderInput />} onClick={() => setDialog({ type: "add" })} data-autofocus>
+
+      <Button variant="primary" size="lg" icon={<Plus />} onClick={() => setDialog({ type: "add" })} data-autofocus>
         Add a game
       </Button>
-      <p class="empty-hint">You can also drop a game folder anywhere on this window.</p>
+      <p class="onboard-hint">
+        <kbd>Ctrl</kbd>
+        <kbd>N</kbd>
+        <span>or drop a folder anywhere</span>
+      </p>
     </div>
   );
 }

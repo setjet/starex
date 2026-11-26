@@ -1,6 +1,18 @@
 import { ArrowDownUp, LayoutGrid, Plus, Search, Settings, Star, X } from "./icons";
 import { For, Show } from "solid-js";
-import { query, saveSettings, select, selectedId, setDialog, setQuery, store, visibleGames } from "../lib/store";
+import {
+  openContextMenu,
+  query,
+  saveSettings,
+  select,
+  selectedId,
+  setDialog,
+  setQuery,
+  setShowHidden,
+  showHidden,
+  store,
+  visibleGames,
+} from "../lib/store";
 import type { LibrarySort } from "../lib/types";
 import { updater } from "../lib/updater";
 import { GameIcon } from "./GameArt";
@@ -61,13 +73,19 @@ export function Sidebar(props: { searchRef: (el: HTMLInputElement) => void }) {
       <div class="sidebar-section">
         <span>Games</span>
         <Menu
-          items={() =>
-            (Object.keys(sortLabels) as LibrarySort[]).map((sort) => ({
+          items={() => [
+            ...(Object.keys(sortLabels) as LibrarySort[]).map((sort) => ({
               label: sortLabels[sort],
               icon: store.settings.librarySort === sort ? <CheckDot /> : <span class="menu-icon-space" />,
               onSelect: () => void saveSettings({ librarySort: sort }),
-            }))
-          }
+            })),
+            {
+              label: "Show hidden games",
+              icon: showHidden() ? <CheckDot /> : <span class="menu-icon-space" />,
+              separatorBefore: true,
+              onSelect: () => setShowHidden(!showHidden()),
+            },
+          ]}
           align="start"
           trigger={(p) => (
             <IconButton label={`Sort: ${sortLabels[store.settings.librarySort]}`} size="sm" {...p}>
@@ -82,7 +100,7 @@ export function Sidebar(props: { searchRef: (el: HTMLInputElement) => void }) {
           each={visibleGames()}
           fallback={
             <Show when={store.games.length > 0}>
-              <p class="sidebar-empty">No games match "{query()}".</p>
+              <p class="sidebar-empty">{query() ? `No games match "${query()}".` : "All your games are hidden."}</p>
             </Show>
           }
         >
@@ -91,7 +109,9 @@ export function Sidebar(props: { searchRef: (el: HTMLInputElement) => void }) {
               type="button"
               class="sidebar-item"
               data-active={selectedId() === game.id || undefined}
+              data-hidden={game.hidden || undefined}
               onClick={() => select(game.id)}
+              onContextMenu={(e) => openContextMenu(game.id, e)}
               onDblClick={() => select(game.id)}
             >
               <GameIcon game={game} size={24} />

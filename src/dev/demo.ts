@@ -27,8 +27,29 @@ function game(id: string, name: string, extra: Partial<Game>): Game {
     saveDir: null,
     backupSaves: true,
     lastScan: null,
+    tags: [],
+    hidden: false,
+    completed: false,
+    history: [],
+    profiles: [],
+    activeProfile: null,
+    details: null,
+    showOnDiscord: true,
+    offline: false,
     ...extra,
   };
+}
+
+/** Two weeks of believable sessions for the activity chart. */
+function demoHistory() {
+  const sessions: { start: number; end: number }[] = [];
+  const lengths = [0, 1.6, 0.7, 0, 2.4, 1.1, 3.2, 0.5, 0, 1.9, 2.7, 0, 1.3, 0.8];
+  lengths.forEach((hours, i) => {
+    if (hours === 0) return;
+    const start = now - (13 - i) * day - 20 * 3600 + 18 * 3600;
+    sessions.push({ start, end: start + Math.round(hours * 3600) });
+  });
+  return sessions;
 }
 
 const games: Game[] = [
@@ -40,10 +61,30 @@ const games: Game[] = [
     launchArgs: "-dx12 -windowed",
     saveDir: "C:/Users/you/Saved Games/Nebula Drift",
     lastScan: { at: now - 3 * day, status: "clean", threats: 0, filesScanned: 38 },
+    tags: ["Ported", "Sci-fi"],
+    history: demoHistory(),
+    profiles: [
+      { id: "dx11", name: "DX11", launchArgs: "-dx11", executable: null, env: [] },
+      { id: "modded", name: "Modded", launchArgs: "-dx12 -mods", executable: null, env: [] },
+    ],
+    activeProfile: "dx11",
+    details: {
+      igdbId: 1,
+      summary:
+        "Pilot a salvaged freighter through a collapsing nebula, trading with drifting stations and outrunning the storm that follows you from system to system.",
+      genres: ["Adventure", "Simulator", "Indie"],
+      releaseDate: now - 400 * day,
+      developer: "Lumen Works",
+      timeToBeat: 21 * 3600,
+      timeToComplete: 46 * 3600,
+      url: null,
+    },
     lastVerification: { at: now - 3 * 3600, mode: "full", status: "pass", filesChecked: 4_812, missing: 0, modified: 0, durationMs: 6_400 },
   }),
   game("hollow", "Hollow Meridian", { lastPlayed: now - 3 * day, playtimeSecs: 9_300, sessions: 6 }),
   game("ember", "Ember & Ash", {
+    tags: ["Ported"],
+    completed: true,
     lastPlayed: now - 9 * day,
     playtimeSecs: 132_000,
     sessions: 71,
@@ -66,6 +107,21 @@ let settings: Settings = {
   reduceMotion: false,
   scanNewGames: true,
   winePath: "",
+  saveDatabase: true,
+  cloudBackupDir: "",
+  discordPresence: true,
+  discordAppId: "",
+  closeToTray: false,
+  startWithSystem: false,
+  globalShortcut: "Alt+Shift+S",
+  igdbClientId: "",
+  igdbClientSecret: "",
+  backdrop: "none",
+  backdropImage: "",
+  backdropStrength: 60,
+  accent: "blue",
+  launchAnimation: true,
+  welcomeSeen: false,
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -100,7 +156,7 @@ export function installDemo() {
       const id = args.id as string;
       switch (cmd) {
         case "bootstrap":
-          return { games, settings, running: [], dataDir: "C:\\Users\\you\\AppData\\Roaming\\Starex", hostArch: "x86_64", hostOs: "windows", repository: "https://github.com/setjet/starex" };
+          return { games, settings, running: [], dataDir: "C:\\Users\\you\\AppData\\Roaming\\Starex", hostArch: "x86_64", hostOs: "windows", startHidden: false, discordBuiltin: false, repository: "https://github.com/setjet/starex" };
         case "save_settings":
           settings = args.settings as Settings;
           return settings;
@@ -169,6 +225,63 @@ export function installDemo() {
           return { id: "3", at: Math.floor(Date.now() / 1000), reason: "manual", files: 6, bytes: 2_400_000 };
         case "restore_saves":
           await sleep(400);
+          return null;
+        case "fetch_details":
+          await sleep(600);
+          return games.find((g) => g.id === id);
+        case "set_offline": {
+          await sleep(600);
+          const g = games.find((x) => x.id === id);
+          if (g) g.offline = args.offline as boolean;
+          return g;
+        }
+        case "check_runtimes":
+          // Ember & Ash shows the missing-runtime dialog.
+          return id === "ember"
+            ? [
+                {
+                  id: "vc2015-x64",
+                  name: "Visual C++ 2015–2022 (x64)",
+                  missing: ["vcruntime140.dll", "msvcp140.dll"],
+                  installed: false,
+                  installer: "D:/Games/EmberAsh/_CommonRedist/vcredist/2022/VC_redist.x64.exe",
+                  download: "https://aka.ms/vs/17/release/vc_redist.x64.exe",
+                },
+                {
+                  id: "directx",
+                  name: "DirectX End-User Runtime (June 2010)",
+                  missing: ["d3dx9_43.dll"],
+                  installed: false,
+                  installer: null,
+                  download: "https://www.microsoft.com/en-us/download/details.aspx?id=35",
+                },
+              ]
+            : [];
+        case "fetch_changelog":
+          await sleep(700);
+          return [
+            {
+              version: "0.2.0",
+              name: "v0.2.0",
+              notes:
+                "## [0.2.0](https://github.com/setjet/starex/compare/v0.1.0...v0.2.0) (2026-11-20)\n\n\n### Features\n\n* **settings:** changelog popup with release notes from GitHub ([#14](https://github.com/setjet/starex/issues/14)) ([a1b2c3d](https://github.com/setjet/starex/commit/a1b2c3d))\n* **library:** sort games by play time ([#12](https://github.com/setjet/starex/issues/12)) ([b2c3d4e](https://github.com/setjet/starex/commit/b2c3d4e))\n\n### Bug Fixes\n\n* toasts no longer stack behind open dialogs ([#13](https://github.com/setjet/starex/issues/13)) ([c3d4e5f](https://github.com/setjet/starex/commit/c3d4e5f))\n",
+              url: "https://github.com/setjet/starex/releases/tag/v0.2.0",
+              publishedAt: "2026-11-20T12:00:00Z",
+              prerelease: false,
+            },
+            {
+              version: "0.1.0",
+              name: "v0.1.0",
+              notes:
+                "## 0.1.0 (2026-11-01)\n\n\n### Features\n\n* initial release of Starex ([f2918f3](https://github.com/setjet/starex/commit/f2918f3))\n",
+              url: "https://github.com/setjet/starex/releases/tag/v0.1.0",
+              publishedAt: "2026-11-01T12:00:00Z",
+              prerelease: false,
+            },
+          ];
+        case "launch_link":
+          return `starex://play/${id}`;
+        case "take_launch_request":
           return null;
         case "plugin:window|is_maximized":
           return false;

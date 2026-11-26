@@ -16,6 +16,33 @@ pub enum LaunchBehavior {
     Hide,
 }
 
+/// What fills the window behind the library and game pages.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum Backdrop {
+    #[default]
+    None,
+    /// A soft, slowly moving light field.
+    Aurora,
+    /// The selected game's art, blurred.
+    Game,
+    /// An image the user chose.
+    Custom,
+}
+
+/// The colour of Play and other highlights.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum Accent {
+    #[default]
+    Blue,
+    Violet,
+    Pink,
+    Green,
+    Orange,
+    White,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum LibrarySort {
@@ -45,6 +72,33 @@ pub struct Settings {
     pub scan_new_games: bool,
     /// Linux and macOS: the Wine program used for Windows games. Empty means find it.
     pub wine_path: String,
+    /// Look up save folders in the Ludusavi save database (downloaded from GitHub).
+    pub save_database: bool,
+    /// A synced folder (OneDrive, Dropbox, Syncthing…) that receives a copy of every save backup.
+    pub cloud_backup_dir: String,
+    /// Show the game being played on the user's Discord profile.
+    pub discord_presence: bool,
+    /// The Discord application Starex reports as. Empty uses the one built into Starex.
+    pub discord_app_id: String,
+    /// The close button keeps Starex running in the system tray.
+    pub close_to_tray: bool,
+    /// Start Starex, in the tray, when the user signs in.
+    pub start_with_system: bool,
+    /// A system-wide key combination that brings Starex up, e.g. "Alt+Shift+S". Empty turns it off.
+    pub global_shortcut: String,
+    /// Twitch developer credentials for IGDB game details.
+    pub igdb_client_id: String,
+    pub igdb_client_secret: String,
+    pub backdrop: Backdrop,
+    /// The custom backdrop image, copied into Starex's data folder.
+    pub backdrop_image: String,
+    /// How strongly the backdrop shows, 0 to 100.
+    pub backdrop_strength: u8,
+    pub accent: Accent,
+    /// Play the star animation when Starex opens.
+    pub launch_animation: bool,
+    /// The welcome message has been shown once.
+    pub welcome_seen: bool,
 }
 
 impl Default for Settings {
@@ -60,6 +114,21 @@ impl Default for Settings {
             reduce_motion: false,
             scan_new_games: true,
             wine_path: String::new(),
+            save_database: true,
+            cloud_backup_dir: String::new(),
+            discord_presence: true,
+            discord_app_id: String::new(),
+            close_to_tray: false,
+            start_with_system: false,
+            global_shortcut: "Alt+Shift+S".to_owned(),
+            igdb_client_id: String::new(),
+            igdb_client_secret: String::new(),
+            backdrop: Backdrop::None,
+            backdrop_image: String::new(),
+            backdrop_strength: 60,
+            accent: Accent::Blue,
+            launch_animation: true,
+            welcome_seen: false,
         }
     }
 }

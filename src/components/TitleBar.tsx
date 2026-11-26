@@ -19,7 +19,7 @@ export function TitleBar() {
   return (
     <header class="titlebar" data-tauri-drag-region>
       <div class="titlebar-brand" data-tauri-drag-region>
-        <StarMark size={14} class="titlebar-mark" />
+        <StarMark size={20} class="titlebar-mark" />
         <span class="titlebar-name" data-tauri-drag-region>
           Starex
         </span>

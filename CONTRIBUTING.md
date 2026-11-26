@@ -96,14 +96,3 @@ Releases are automatic. Nobody edits a version number by hand.
    with the updater key and uploads them with `latest.json`.
 4. Installed copies of Starex find the new version on their next start and offer to update.
 
-Maintainers: see [docs/RELEASING.md](docs/RELEASING.md) for the one-time setup.
-
-## Style
-
-- Rust: `rustfmt` and `clippy` clean, no `unwrap` outside tests. Errors are sentences a user can
-  act on.
-- Interface: colours, sizes, radii and durations come from `src/styles/tokens.css`. Hover styles
-  sit inside `@media (hover: hover)`, and animations respect reduced motion.
-- Copy: short, plain and specific. Say what happened and what to do next.
-
-Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).

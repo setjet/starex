@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::Duration;
 
 use starex_core::library::Library;
+use starex_core::savedb::SaveDb;
 use starex_core::settings::Settings;
 
 /// Where Starex keeps its data: `%APPDATA%\Starex` on Windows.
@@ -14,6 +15,7 @@ pub struct Paths {
     pub settings: PathBuf,
     pub baselines: PathBuf,
     pub artwork: PathBuf,
+    pub savedb: PathBuf,
 }
 
 impl Paths {
@@ -27,6 +29,7 @@ impl Paths {
             settings: root.join("settings.json"),
             baselines: root.join("baselines"),
             artwork: root.join("artwork"),
+            savedb: root.join("save-db.json"),
             root,
         }
     }
@@ -82,6 +85,10 @@ pub struct AppState {
     /// Cancellation flags of running verifications and baselines, by game id.
     pub tasks: Mutex<HashMap<String, Arc<AtomicBool>>>,
     pub http: reqwest::Client,
+    /// The save database, once loaded.
+    pub savedb: Mutex<Option<Arc<SaveDb>>>,
+    /// A game to start once the window is ready, from a shortcut or a `starex://` link.
+    pub launch_request: Mutex<Option<String>>,
 }
 
 impl AppState {
@@ -103,6 +110,8 @@ impl AppState {
             sessions: Mutex::new(HashMap::new()),
             tasks: Mutex::new(HashMap::new()),
             http,
+            savedb: Mutex::new(None),
+            launch_request: Mutex::new(None),
         })
     }
 
@@ -120,5 +129,13 @@ impl AppState {
 
     pub fn tasks(&self) -> MutexGuard<'_, HashMap<String, Arc<AtomicBool>>> {
         self.tasks.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub fn savedb(&self) -> MutexGuard<'_, Option<Arc<SaveDb>>> {
+        self.savedb.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub fn launch_request(&self) -> MutexGuard<'_, Option<String>> {
+        self.launch_request.lock().unwrap_or_else(|e| e.into_inner())
     }
 }

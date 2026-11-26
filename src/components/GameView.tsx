@@ -1,21 +1,18 @@
 import {
+  Check,
+  ChevronDown,
   CircleCheck,
+  Flag,
+  WifiOff,
   CircleX,
-  Ellipsis,
   Fingerprint,
-  FolderOpen,
-  Image,
   Info,
   Play,
   ScanSearch,
   ShieldAlert,
   ShieldCheck,
   ShieldX,
-  SlidersHorizontal,
-  Sparkles,
   Square,
-  Star,
-  Trash2,
   TriangleAlert,
 } from "./icons";
 import { createMemo, createResource, createSignal, For, Match, onCleanup, Show, Switch } from "solid-js";
@@ -24,7 +21,6 @@ import { generatedArt } from "../lib/art";
 import { bytes, clock, count, playtime, relativeTo, timeAgo } from "../lib/format";
 import {
   cancelTask,
-  fetchArtwork,
   launch,
   patchGame,
   recordBaseline,
@@ -35,10 +31,13 @@ import {
   store,
   verify,
 } from "../lib/store";
-import type { CheckStatus, Game } from "../lib/types";
+import type { CheckStatus, Game, VerifyReport } from "../lib/types";
+import { ActivityPanel } from "./ActivityPanel";
+import { DetailsPanel } from "./DetailsPanel";
 import { FadeImage } from "./GameArt";
+import { LocalStatus } from "./LocalStatus";
 import { SavesPanel } from "./SavesPanel";
-import { Button, IconButton } from "./ui/Button";
+import { Button } from "./ui/Button";
 import { Menu } from "./ui/Menu";
 import { Progress, Spinner } from "./ui/Spinner";
 
@@ -53,6 +52,8 @@ export function GameView(props: { game: Game }) {
       <Hero game={game()} now={now()} />
       <div class="game-body">
         <StatsPanel game={game()} />
+        <Show when={game().details}>{(d) => <DetailsPanel details={d()} />}</Show>
+        <ActivityPanel game={game()} />
         <FilesPanel game={game()} />
         <SavesPanel game={game()} />
         <LaunchPanel game={game()} />
@@ -64,7 +65,6 @@ export function GameView(props: { game: Game }) {
 function Hero(props: { game: Game; now: number }) {
   const g = () => props.game;
   const startedAt = () => store.running[g().id];
-  const verification = () => g().lastVerification;
 
   return (
     <section class="hero" aria-label={g().name}>
@@ -88,18 +88,23 @@ function Hero(props: { game: Game; now: number }) {
         </Show>
 
         <div class="hero-meta">
+          <Show when={g().completed}>
+            <span class="chip" data-tone="pass">
+              <Flag />
+              Finished
+            </span>
+          </Show>
+          <Show when={g().offline}>
+            <span class="chip">
+              <WifiOff />
+              Offline
+            </span>
+          </Show>
           <Show when={g().lastScan?.status === "threats"}>
             <span class="chip" data-tone="fail">
               <ShieldX />
               Threats found
             </span>
-          </Show>
-          <Show when={verification()} fallback={<span class="chip">Not verified</span>}>
-            {(v) => <StatusChip status={v().status} at={v().at} />}
-          </Show>
-          <Show when={g().lastPlayed}>{(at) => <span class="hero-meta-item">Played {timeAgo(at(), props.now)}</span>}</Show>
-          <Show when={g().playtimeSecs > 0}>
-            <span class="hero-meta-item">{playtime(g().playtimeSecs)} total</span>
           </Show>
         </div>
 
@@ -120,78 +125,47 @@ function Hero(props: { game: Game; now: number }) {
               )}
             </Match>
             <Match when={true}>
-              <button
-                type="button"
-                class="play-btn"
-                disabled={store.launching[g().id]}
-                onClick={() => void launch(g().id)}
-                data-autofocus
-              >
-                <Show when={store.launching[g().id]} fallback={<Play class="play-icon" />}>
-                  <Spinner size={18} />
+              <div class="play-group" data-split={g().profiles.length > 0 || undefined}>
+                <button
+                  type="button"
+                  class="play-btn"
+                  disabled={store.launching[g().id]}
+                  onClick={() => void launch(g().id)}
+                  data-autofocus
+                >
+                  <Show when={store.launching[g().id]} fallback={<Play class="play-icon" />}>
+                    <Spinner size={18} />
+                  </Show>
+                  <span>{store.launching[g().id] ? "Starting" : "Play"}</span>
+                </button>
+                <Show when={g().profiles.length > 0}>
+                  <Menu
+                    align="start"
+                    items={() => [
+                      {
+                        label: "Standard",
+                        icon: g().activeProfile ? <span class="menu-icon-space" /> : <Check />,
+                        onSelect: () => void patchGame(g().id, { activeProfile: null }),
+                      },
+                      ...g().profiles.map((profile) => ({
+                        label: profile.name,
+                        icon: g().activeProfile === profile.id ? <Check /> : <span class="menu-icon-space" />,
+                        onSelect: () => void patchGame(g().id, { activeProfile: profile.id }),
+                      })),
+                    ]}
+                    trigger={(p) => (
+                      <button type="button" class="play-profile" aria-label="Launch profile" {...p}>
+                        <span>{g().profiles.find((x) => x.id === g().activeProfile)?.name ?? "Standard"}</span>
+                        <ChevronDown />
+                      </button>
+                    )}
+                  />
                 </Show>
-                <span>{store.launching[g().id] ? "Starting" : "Play"}</span>
-              </button>
+              </div>
             </Match>
           </Switch>
 
-          <IconButton
-            label="Quick check"
-            variant="glass"
-            size="lg"
-            disabled={!!store.tasks[g().id]}
-            onClick={() => void verify(g().id, "quick")}
-          >
-            <ShieldCheck />
-          </IconButton>
-          <IconButton label="Open game folder" variant="glass" size="lg" onClick={() => void api.reveal(g().id, "folder")}>
-            <FolderOpen />
-          </IconButton>
-          <IconButton
-            label="Properties"
-            variant="glass"
-            size="lg"
-            onClick={() => setDialog({ type: "properties", id: g().id })}
-          >
-            <SlidersHorizontal />
-          </IconButton>
-          <Menu
-            items={() => [
-              {
-                label: g().favorite ? "Remove from favorites" : "Add to favorites",
-                icon: <Star />,
-                onSelect: () => void patchGame(g().id, { favorite: !g().favorite }),
-              },
-              {
-                label: "Change artwork…",
-                icon: <Image />,
-                onSelect: () => setDialog({ type: "properties", id: g().id, tab: "artwork" }),
-              },
-              {
-                label: "Find artwork online",
-                icon: <Sparkles />,
-                disabled: !store.settings.steamgriddbKey,
-                onSelect: () => void fetchArtwork(g().id, false),
-              },
-              {
-                label: "Show executable",
-                icon: <ScanSearch />,
-                onSelect: () => void api.reveal(g().id, "executable"),
-              },
-              {
-                label: "Remove from library…",
-                icon: <Trash2 />,
-                danger: true,
-                separatorBefore: true,
-                onSelect: () => setDialog({ type: "remove", id: g().id }),
-              },
-            ]}
-            trigger={(p) => (
-              <IconButton label="More" variant="glass" size="lg" {...p}>
-                <Ellipsis />
-              </IconButton>
-            )}
-          />
+          <LocalStatus game={g()} />
         </div>
       </div>
     </section>
@@ -238,7 +212,6 @@ function FilesPanel(props: { game: Game }) {
   const task = () => store.tasks[id()];
   const report = () => store.reports[id()];
   const [baseline, { refetch }] = createResource(id, (gameId) => api.baselineInfo(gameId).catch(() => null));
-  const [showIssues, setShowIssues] = createSignal(false);
 
   const progress = createMemo(() => {
     const p = task()?.progress;
@@ -270,7 +243,9 @@ function FilesPanel(props: { game: Game }) {
           </h2>
           <p class="panel-subtitle">{summary()}</p>
         </div>
-        <Show when={props.game.lastVerification}>{(v) => <StatusChip status={v().status} at={v().at} />}</Show>
+        <Show when={props.game.lastVerification} fallback={<span class="chip">Not verified</span>}>
+          {(v) => <StatusChip status={v().status} at={v().at} />}
+        </Show>
       </header>
 
       <Show when={task()}>
@@ -278,6 +253,7 @@ function FilesPanel(props: { game: Game }) {
           <div class="task">
             <div class="task-row">
               <span class="task-label">
+                <Spinner size={14} />
                 {{ baseline: "Recording baseline", verify: "Checking files", scan: "Scanning for viruses" }[t().task]}
                 <Show when={t().progress.totalFiles > 0}>
                   {" "}
@@ -297,44 +273,7 @@ function FilesPanel(props: { game: Game }) {
         )}
       </Show>
 
-      <Show when={!task() && report()}>
-        {(r) => (
-          <ul class="checks">
-            <For each={r().checks}>
-              {(check) => (
-                <li class="check">
-                  <StatusIcon status={check.status} />
-                  <div class="check-copy">
-                    <span class="check-title">{check.title}</span>
-                    <span class="check-detail">{check.detail}</span>
-                  </div>
-                </li>
-              )}
-            </For>
-            <Show when={r().issues.length > 0}>
-              <li class="issues">
-                <button type="button" class="issues-toggle" onClick={() => setShowIssues((v) => !v)} aria-expanded={showIssues()}>
-                  {showIssues() ? "Hide" : "Show"} {count(r().missing + r().modified, "affected file")}
-                </button>
-                <Show when={showIssues()}>
-                  <ul class="issue-list">
-                    <For each={r().issues}>
-                      {(issue) => (
-                        <li class="issue">
-                          <span class="issue-kind" data-kind={issue.kind}>
-                            {issue.kind === "missing" ? "Missing" : issue.kind === "unreadable" ? "Unreadable" : "Changed"}
-                          </span>
-                          <span class="issue-path">{issue.path}</span>
-                        </li>
-                      )}
-                    </For>
-                  </ul>
-                </Show>
-              </li>
-            </Show>
-          </ul>
-        )}
-      </Show>
+      <Show when={!task() && report()}>{(r) => <CheckResult report={r()} />}</Show>
 
       <div class="baseline">
         <Fingerprint class="baseline-icon" />
@@ -379,6 +318,73 @@ function FilesPanel(props: { game: Game }) {
         </Show>
       </footer>
     </section>
+  );
+}
+
+/** The outcome of a check: one calm line when all is well, the problems when it is not. */
+function CheckResult(props: { report: VerifyReport }) {
+  const [open, setOpen] = createSignal(false);
+  const [showIssues, setShowIssues] = createSignal(false);
+  const problems = () => props.report.checks.filter((c) => c.status === "warn" || c.status === "fail");
+  const shown = () => (open() ? props.report.checks : problems());
+  const headline = () => {
+    const n = props.report.checks.length;
+    if (props.report.status === "fail") return "Problems found";
+    if (props.report.status === "warn") return "Some checks need attention";
+    return `All ${n} checks passed`;
+  };
+
+  return (
+    <div class="check-result" data-tone={props.report.status}>
+      <div class="check-summary">
+        <StatusIcon status={props.report.status} />
+        <span class="check-summary-title">{headline()}</span>
+        <button type="button" class="check-toggle" onClick={() => setOpen((v) => !v)} aria-expanded={open()}>
+          {open() ? "Hide details" : problems().length ? "Show all" : "Details"}
+        </button>
+      </div>
+      <Show when={shown().length > 0}>
+        <ul class="checks">
+          <For each={shown()}>
+            {(check) => (
+              <li class="check">
+                <StatusIcon status={check.status} />
+                <div class="check-copy">
+                  <span class="check-title">{check.title}</span>
+                  <span class="check-detail">{check.detail}</span>
+                </div>
+              </li>
+            )}
+          </For>
+          <Show when={props.report.issues.length > 0}>
+            <li class="issues">
+              <button
+                type="button"
+                class="issues-toggle"
+                onClick={() => setShowIssues((v) => !v)}
+                aria-expanded={showIssues()}
+              >
+                {showIssues() ? "Hide" : "Show"} {count(props.report.missing + props.report.modified, "affected file")}
+              </button>
+              <Show when={showIssues()}>
+                <ul class="issue-list">
+                  <For each={props.report.issues}>
+                    {(issue) => (
+                      <li class="issue">
+                        <span class="issue-kind" data-kind={issue.kind}>
+                          {issue.kind === "missing" ? "Missing" : issue.kind === "unreadable" ? "Unreadable" : "Changed"}
+                        </span>
+                        <span class="issue-path">{issue.path}</span>
+                      </li>
+                    )}
+                  </For>
+                </ul>
+              </Show>
+            </li>
+          </Show>
+        </ul>
+      </Show>
+    </div>
   );
 }
 

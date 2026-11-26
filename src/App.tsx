@@ -3,21 +3,32 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { CircleCheck, CircleX, FolderInput, Info, TriangleAlert } from "./components/icons";
 import { createEffect, createSignal, ErrorBoundary, For, type JSX, Match, onCleanup, onMount, Show, Switch } from "solid-js";
 import { AddGameDialog } from "./components/AddGameDialog";
+import { ChangelogDialog } from "./components/ChangelogDialog";
 import { GameView } from "./components/GameView";
 import { LibraryView } from "./components/LibraryView";
 import { PropertiesDialog } from "./components/PropertiesDialog";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { Sidebar } from "./components/Sidebar";
-import { RemoveDialog, SavesDialog, ThreatsDialog, UpdateDialog } from "./components/SmallDialogs";
+import { Backdrop } from "./components/Backdrop";
+import { Splash } from "./components/Splash";
+import { RemoveDialog, RuntimesDialog, SavesDialog, ThreatsDialog, UpdateDialog } from "./components/SmallDialogs";
 import { TitleBar } from "./components/TitleBar";
+import { WelcomeDialog } from "./components/WelcomeDialog";
+import { OverlayScrollbar } from "./components/ui/OverlayScrollbar";
+import { gameMenuItems } from "./components/gameMenu";
+import { ContextMenu } from "./components/ui/Menu";
 import { errorText } from "./lib/api";
-import { dialog, init, launch, selectedGame, setDialog, store } from "./lib/store";
+import { applyAccent } from "./lib/theme";
+import { contextMenu, dialog, init, launch, selectedGame, setContextMenu, setDialog, startHidden, store } from "./lib/store";
 import { dismiss, toast, toasts } from "./lib/toast";
 
 export function App() {
   let search!: HTMLInputElement;
+  let content: HTMLElement | undefined;
   const [dropping, setDropping] = createSignal(false);
   const [failed, setFailed] = createSignal("");
+  const [splashPlay, setSplashPlay] = createSignal(false);
+  const [showSplash, setShowSplash] = createSignal(true);
 
   onMount(async () => {
     try {
@@ -26,7 +37,22 @@ export function App() {
       setFailed(errorText(e));
     }
     // The window starts hidden so it never flashes white; show it once the first frame is ready.
-    requestAnimationFrame(() => void getCurrentWindow().show());
+    // The launch animation can be turned off in Settings > Appearance.
+    if (!store.settings.launchAnimation) setShowSplash(false);
+    // The first time Starex opens: a welcome, once the launch animation has finished.
+    if (!store.settings.welcomeSeen) {
+      setTimeout(() => {
+        if (!dialog()) setDialog({ type: "welcome" });
+      }, store.settings.launchAnimation ? 1900 : 300);
+    }
+    // Started with the system: wait in the tray instead of opening.
+    if (startHidden()) setSplashPlay(true);
+    else
+      requestAnimationFrame(() => {
+        void getCurrentWindow()
+          .show()
+          .finally(() => setSplashPlay(true));
+      });
 
     const unlisten = await getCurrentWebview().onDragDropEvent((event) => {
       const kind = event.payload.type;
@@ -75,13 +101,16 @@ export function App() {
   createEffect(() => {
     document.documentElement.toggleAttribute("data-reduce-motion", store.settings.reduceMotion);
   });
+  createEffect(() => applyAccent(store.settings.accent));
 
   return (
-    <div class="app" data-os={store.hostOs || undefined}>
+    <div class="app" data-os={store.hostOs || undefined} data-backdrop={store.settings.backdrop !== "none" || undefined}>
+      <Backdrop />
       <TitleBar />
       <div class="shell">
         <Sidebar searchRef={(el) => (search = el)} />
-        <main class="content" data-ready={store.ready || undefined}>
+        <div class="content-frame">
+        <main class="content" ref={content} data-ready={store.ready || undefined}>
           <Show when={!failed()} fallback={<StartupError message={failed()} />}>
             <Show when={store.ready}>
               <Guard>
@@ -92,6 +121,8 @@ export function App() {
             </Show>
           </Show>
         </main>
+        <OverlayScrollbar target={() => content} />
+        </div>
       </div>
 
       <Show when={dropping()}>
@@ -137,12 +168,39 @@ export function App() {
                 </Show>
               )}
             </Match>
+            <Match when={d.type === "runtimes" && d}>
+              {(r) => (
+                <Show when={store.games.find((g) => g.id === r().id)} keyed>
+                  {(game) => <RuntimesDialog game={game} runtimes={r().runtimes} />}
+                </Show>
+              )}
+            </Match>
             <Match when={d.type === "update"}>
               <UpdateDialog />
+            </Match>
+            <Match when={d.type === "changelog"}>
+              <ChangelogDialog />
+            </Match>
+            <Match when={d.type === "welcome"}>
+              <WelcomeDialog />
             </Match>
           </Switch>
           </Guard>
         )}
+      </Show>
+
+      <Show when={contextMenu()} keyed>
+        {(menu) => (
+          <Show when={store.games.find((g) => g.id === menu.gameId)}>
+            {(game) => (
+              <ContextMenu x={menu.x} y={menu.y} items={gameMenuItems(game())} onClose={() => setContextMenu(null)} />
+            )}
+          </Show>
+        )}
+      </Show>
+
+      <Show when={showSplash()}>
+        <Splash play={splashPlay()} />
       </Show>
 
       <div class="toasts" role="status" aria-live="polite">

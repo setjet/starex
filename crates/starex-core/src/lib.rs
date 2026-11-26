@@ -13,6 +13,8 @@ pub mod library;
 pub mod manifest;
 pub mod model;
 pub mod pe;
+pub mod runtimes;
+pub mod savedb;
 pub mod saves;
 pub mod settings;
 mod util;

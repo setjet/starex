@@ -12,6 +12,8 @@ body,
 }
 
 html {
+  /* No elastic over-scroll: the window never pulls past its content. */
+  overscroll-behavior: none;
   font-family: var(--sx-font-sans);
   font-size: var(--sx-text-md);
   line-height: 1.45;
@@ -25,6 +27,7 @@ html {
 
 body {
   overflow: hidden;
+  overscroll-behavior: none;
   background: var(--sx-bg-frame);
   user-select: none;
   -webkit-user-select: none;
@@ -68,6 +71,10 @@ ul {
 
 ul {
   list-style: none;
+}
+
+* {
+  overscroll-behavior: none;
 }
 
 img {
@@ -183,4 +190,15 @@ kbd {
 
 :root[data-reduce-motion] .spinner {
   animation: spin 0.8s linear infinite !important;
+}
+
+/* Visible to screen readers only. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

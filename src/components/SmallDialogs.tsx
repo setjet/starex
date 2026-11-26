@@ -1,8 +1,9 @@
 import { createResource, createSignal, For, Show } from "solid-js";
-import { api } from "../lib/api";
+import { api, errorText } from "../lib/api";
 import { bytes, count } from "../lib/format";
-import { launch, removeGame, restoreSaves, savesVersion, scan, scanReports, setDialog } from "../lib/store";
-import type { BackupReason, Game } from "../lib/types";
+import { launch, missingRuntimes, removeGame, restoreSaves, savesVersion, scan, scanReports, setDialog } from "../lib/store";
+import { toast } from "../lib/toast";
+import type { BackupReason, Game, Runtime } from "../lib/types";
 import { installUpdate, updater } from "../lib/updater";
 import { Button } from "./ui/Button";
 import { Dialog } from "./ui/Dialog";
@@ -154,7 +155,7 @@ export function ThreatsDialog(props: { game: Game }) {
         <>
           <Button variant="ghost" class="btn-danger-ghost" onClick={() => {
             setDialog(null);
-            void launch(props.game.id, true);
+            void launch(props.game.id, { threats: true });
           }}>
             Play anyway
           </Button>
@@ -185,6 +186,83 @@ export function ThreatsDialog(props: { game: Game }) {
           </For>
         </ul>
       </Show>
+    </Dialog>
+  );
+}
+
+/** Before Play: runtimes the game needs that this computer is missing. */
+export function RuntimesDialog(props: { game: Game; runtimes: Runtime[] }) {
+  const [list, setList] = createSignal(props.runtimes);
+  const [checking, setChecking] = createSignal(false);
+  const [started, setStarted] = createSignal<Record<string, boolean>>({});
+
+  const install = async (runtime: Runtime) => {
+    try {
+      await api.installRuntime(props.game.id, runtime.id);
+      setStarted({ ...started(), [runtime.id]: true });
+    } catch (e) {
+      toast("Could not start the installer", { tone: "danger", detail: errorText(e) });
+    }
+  };
+
+  const checkAgain = async () => {
+    setChecking(true);
+    const missing = await missingRuntimes(props.game.id);
+    setChecking(false);
+    if (missing.length === 0) {
+      setDialog(null);
+      toast("Everything the game needs is installed", { tone: "success" });
+      void launch(props.game.id, { threats: true, runtimes: true });
+    } else {
+      setList(missing);
+    }
+  };
+
+  return (
+    <Dialog
+      title="Install what this game needs"
+      description={`${props.game.name} uses ${list().length === 1 ? "a runtime" : "runtimes"} this computer does not have yet. Without ${list().length === 1 ? "it" : "them"}, the game will most likely not start.`}
+      onClose={() => setDialog(null)}
+      size="md"
+      footer={
+        <>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setDialog(null);
+              void launch(props.game.id, { threats: true, runtimes: true });
+            }}
+          >
+            Play anyway
+          </Button>
+          <div class="dialog-footer-spacer" />
+          <Button variant="primary" loading={checking()} onClick={() => void checkAgain()} data-autofocus>
+            Check again
+          </Button>
+        </>
+      }
+    >
+      <ul class="backup-list">
+        <For each={list()}>
+          {(runtime) => (
+            <li class="backup">
+              <div class="backup-copy">
+                <span class="backup-when">{runtime.name}</span>
+                <span class="backup-detail">
+                  {started()[runtime.id]
+                    ? "Finish the installer, then choose Check again."
+                    : runtime.installer
+                      ? "Installer included with the game"
+                      : "Download from Microsoft"}
+                </span>
+              </div>
+              <Button size="sm" variant={started()[runtime.id] ? "ghost" : "secondary"} onClick={() => void install(runtime)}>
+                {runtime.installer ? "Install" : "Download"}
+              </Button>
+            </li>
+          )}
+        </For>
+      </ul>
     </Dialog>
   );
 }

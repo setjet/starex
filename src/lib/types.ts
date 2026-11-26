@@ -7,6 +7,8 @@ export type VerifyMode = "quick" | "full";
 export type ArtworkKind = "banner" | "cover" | "logo" | "icon";
 export type LaunchBehavior = "keepOpen" | "minimize" | "hide";
 export type LibrarySort = "recent" | "name" | "playtime";
+export type Backdrop = "none" | "aurora" | "game" | "custom";
+export type Accent = "blue" | "violet" | "pink" | "green" | "orange" | "white";
 
 export interface Artwork {
   banner: string | null;
@@ -48,6 +50,39 @@ export interface Game {
   saveDir: string | null;
   backupSaves: boolean;
   lastScan: ScanSummary | null;
+  tags: string[];
+  hidden: boolean;
+  completed: boolean;
+  history: PlaySession[];
+  profiles: LaunchProfile[];
+  activeProfile: string | null;
+  details: GameDetails | null;
+  showOnDiscord: boolean;
+  offline: boolean;
+}
+
+export interface PlaySession {
+  start: number;
+  end: number;
+}
+
+export interface LaunchProfile {
+  id: string;
+  name: string;
+  launchArgs: string;
+  executable: string | null;
+  env: EnvVar[];
+}
+
+export interface GameDetails {
+  igdbId: number | null;
+  summary: string | null;
+  genres: string[];
+  releaseDate: number | null;
+  developer: string | null;
+  timeToBeat: number | null;
+  timeToComplete: number | null;
+  url: string | null;
 }
 
 export type ScanStatus = "clean" | "threats" | "unavailable" | "cancelled";
@@ -86,6 +121,7 @@ export interface SaveLocation {
   path: string;
   files: number;
   modified: number | null;
+  fromDatabase: boolean;
 }
 
 export interface GamePatch {
@@ -97,6 +133,12 @@ export interface GamePatch {
   favorite?: boolean;
   saveDir?: string | null;
   backupSaves?: boolean;
+  tags?: string[];
+  hidden?: boolean;
+  completed?: boolean;
+  profiles?: LaunchProfile[];
+  activeProfile?: string | null;
+  showOnDiscord?: boolean;
 }
 
 export interface Settings {
@@ -110,6 +152,30 @@ export interface Settings {
   reduceMotion: boolean;
   scanNewGames: boolean;
   winePath: string;
+  saveDatabase: boolean;
+  cloudBackupDir: string;
+  discordPresence: boolean;
+  discordAppId: string;
+  closeToTray: boolean;
+  startWithSystem: boolean;
+  globalShortcut: string;
+  igdbClientId: string;
+  igdbClientSecret: string;
+  backdrop: Backdrop;
+  backdropImage: string;
+  backdropStrength: number;
+  accent: Accent;
+  launchAnimation: boolean;
+  welcomeSeen: boolean;
+}
+
+export interface Runtime {
+  id: string;
+  name: string;
+  missing: string[];
+  installed: boolean;
+  installer: string | null;
+  download: string | null;
 }
 
 export interface RunningGame {
@@ -125,6 +191,18 @@ export interface Bootstrap {
   hostArch: string;
   hostOs: string;
   repository: string;
+  startHidden: boolean;
+  discordBuiltin: boolean;
+}
+
+/** One published version of Starex, from its GitHub releases. */
+export interface Release {
+  version: string;
+  name: string;
+  notes: string;
+  url: string;
+  publishedAt: string | null;
+  prerelease: boolean;
 }
 
 export type NoteLevel = "info" | "warn" | "error";
@@ -133,6 +211,7 @@ export interface ExecutableCandidate {
   path: string;
   relative: string;
   size: number;
+  format: "pe" | "elf" | "machO" | "appBundle" | "script" | "batch" | null;
   arch: Arch | null;
   subsystem: "gui" | "console" | "other" | null;
   problem: "unreadable" | "notExecutable" | null;

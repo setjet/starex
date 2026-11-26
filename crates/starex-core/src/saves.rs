@@ -54,6 +54,19 @@ pub struct SaveLocation {
     pub path: PathBuf,
     pub files: u64,
     pub modified: Option<u64>,
+    /// Found through the save database rather than by name matching.
+    pub from_database: bool,
+}
+
+/// Describes an existing folder as a save location.
+pub fn location(path: PathBuf, from_database: bool) -> SaveLocation {
+    let (files, _, modified) = summarize(&path);
+    SaveLocation {
+        path,
+        files,
+        modified,
+        from_database,
+    }
 }
 
 /// Folder names that games use for saves inside their own folder.
@@ -125,7 +138,12 @@ pub fn suggest_locations(game_name: &str, install_dir: &Path, roots: &[PathBuf])
         .into_iter()
         .map(|path| {
             let (files, _, modified) = summarize(&path);
-            SaveLocation { path, files, modified }
+            SaveLocation {
+                path,
+                files,
+                modified,
+                from_database: false,
+            }
         })
         .filter(|l| l.files > 0)
         .collect();
@@ -269,6 +287,39 @@ pub fn restore(backups: &Path, backup_id: &str, save_dir: &Path) -> Result<Optio
     Ok(safety)
 }
 
+/// Copies every backup that `dest` does not have yet into `dest` (a folder that OneDrive,
+/// Dropbox, Google Drive or Syncthing syncs), then keeps only the newest [`KEEP_BACKUPS`] there.
+pub fn mirror(backups: &Path, dest: &Path) -> Result<usize> {
+    let mut copied = 0;
+    for backup in list(backups) {
+        let target = dest.join(&backup.id);
+        if target.join(META).is_file() {
+            continue;
+        }
+        copy_tree(&backups.join(&backup.id), &target)?;
+        copied += 1;
+    }
+    prune(dest, KEEP_BACKUPS);
+    Ok(copied)
+}
+
+/// A folder name made from a game's name that every file system accepts.
+pub fn folder_name(game_name: &str) -> String {
+    let cleaned: String = game_name
+        .chars()
+        .map(|c| {
+            if c.is_alphanumeric() || matches!(c, ' ' | '-' | '_' | '.' | '(' | ')' | '&' | '\'') {
+                c
+            } else {
+                ' '
+            }
+        })
+        .collect();
+    let trimmed = cleaned.split_whitespace().collect::<Vec<_>>().join(" ");
+    let trimmed = trimmed.trim_matches('.').to_owned();
+    if trimmed.is_empty() { "Game".to_owned() } else { trimmed }
+}
+
 /// Deletes all but the newest `keep` backups.
 pub fn prune(backups: &Path, keep: usize) {
     for old in list(backups).into_iter().skip(keep) {
@@ -358,6 +409,23 @@ mod tests {
         assert!(!saves.join("new.sav").exists(), "restore gives back exactly the backup");
         assert_eq!(list(&backups).len(), 3);
         assert!(restore(&backups, "../escape", &saves).is_err());
+    }
+
+    #[test]
+    fn mirrors_backups_to_a_cloud_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let (saves, backups, cloud) = (
+            dir.path().join("s"),
+            dir.path().join("b"),
+            dir.path().join("cloud/Game"),
+        );
+        fs::create_dir_all(&saves).unwrap();
+        fs::write(saves.join("slot.sav"), b"1").unwrap();
+        backup(&saves, &backups, BackupReason::Manual).unwrap();
+        assert_eq!(mirror(&backups, &cloud).unwrap(), 1);
+        assert_eq!(mirror(&backups, &cloud).unwrap(), 0, "already mirrored");
+        assert_eq!(list(&cloud).len(), 1);
+        assert_eq!(folder_name("GTA: Vice/City?"), "GTA Vice City");
     }
 
     #[test]

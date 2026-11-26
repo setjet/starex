@@ -17,6 +17,7 @@ blake3.workspace = true
 rayon.workspace = true
 walkdir.workspace = true
 uuid.workspace = true
+serde_yaml_ng = "0.10"
 
 [dev-dependencies]
 tempfile.workspace = true

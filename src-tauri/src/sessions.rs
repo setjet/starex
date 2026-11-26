@@ -47,7 +47,9 @@ pub fn launch(app: &AppHandle, id: &str) -> Result<u64, String> {
     if state.sessions().contains_key(id) {
         return Err("This game is already running.".into());
     }
-    let game = state.library().get(id).map_err(|e| e.to_string())?.clone();
+    let stored = state.library().get(id).map_err(|e| e.to_string())?.clone();
+    // The launch profile chosen for Play (DX11, modded, …) decides the options and executable.
+    let game = stored.with_profile(stored.active_profile.as_deref());
     let settings = state.settings().clone();
 
     if settings.verify_before_launch {
@@ -74,16 +76,28 @@ pub fn launch(app: &AppHandle, id: &str) -> Result<u64, String> {
         && let Some(dir) = &game.save_dir
     {
         let backups = state.paths.save_backups(id);
-        if saves::list(&backups).is_empty()
-            && let Err(e) = saves::backup(dir, &backups, BackupReason::BeforeLaunch)
-        {
-            log::warn!("could not back up saves before launch: {e}");
+        if saves::list(&backups).is_empty() {
+            match saves::backup(dir, &backups, BackupReason::BeforeLaunch) {
+                Ok(_) => crate::savedb::mirror_to_cloud(app, &game),
+                Err(e) => log::warn!("could not back up saves before launch: {e}"),
+            }
         }
     }
 
     let wine = launch::find_wine(&settings.wine_path);
     let mut command = launch::command(&game, wine.as_deref()).map_err(|e| e.to_string())?;
-    let child = command.spawn().map_err(|e| spawn_error(&game, &e))?;
+    let child = match command.spawn() {
+        Ok(child) => Started::Child(child),
+        // The program asks to run as administrator. Ask Windows, which shows its UAC prompt.
+        #[cfg(windows)]
+        Err(e) if e.raw_os_error() == Some(ERROR_ELEVATION_REQUIRED) => {
+            log::info!("{} needs administrator rights, asking Windows", game.name);
+            Started::Elevated(
+                elevated::spawn(&command).map_err(|reason| format!("{} could not start: {reason}", game.name))?,
+            )
+        }
+        Err(e) => return Err(spawn_error(&game, &e)),
+    };
     let started_at = now_secs();
     let stop = Arc::new(AtomicBool::new(false));
     state.sessions().insert(
@@ -138,7 +152,7 @@ fn spawn_error(game: &Game, err: &std::io::Error) -> String {
         (true, Some(2 | 3)) => "its executable is missing. Verify the game files or choose the executable again in Properties.".to_owned(),
         (true, Some(5)) => "Windows denied access to its executable. Your antivirus may have blocked it, or the file is still being copied.".to_owned(),
         (true, Some(193 | 216)) => "its executable is damaged or built for a different kind of computer.".to_owned(),
-        (true, Some(740)) => "it needs to run as administrator. Right-click its executable, open Properties > Compatibility, and tick \"Run this program as an administrator\".".to_owned(),
+        (true, Some(740)) => "it needs to run as administrator, and Windows did not allow it.".to_owned(),
         (true, Some(1260)) => "a security policy on this computer blocks it.".to_owned(),
         (true, Some(14001)) => "a runtime it needs is missing. Install the Microsoft Visual C++ Redistributable (x64), often included in the game's _CommonRedist folder.".to_owned(),
         (false, Some(13)) => "its executable is not marked as runnable. Allow it with chmod +x, or check the folder's permissions.".to_owned(),
@@ -169,7 +183,39 @@ pub fn exit_hint(code: Option<i32>) -> Option<String> {
     Some(hint.to_owned())
 }
 
-fn follow(app: AppHandle, game: Game, mut child: std::process::Child, started_at: u64, stop: Arc<AtomicBool>) {
+/// Windows' answer when a program's manifest asks for administrator rights.
+#[cfg(windows)]
+const ERROR_ELEVATION_REQUIRED: i32 = 740;
+
+/// The process Starex started: an ordinary child, or one Windows started as administrator.
+enum Started {
+    Child(std::process::Child),
+    #[cfg(windows)]
+    Elevated(elevated::Process),
+}
+
+impl Started {
+    /// `Ok(Some(code))` once the process has ended.
+    fn try_wait(&mut self) -> std::io::Result<Option<Option<i32>>> {
+        match self {
+            Started::Child(child) => child.try_wait().map(|s| s.map(|s| s.code())),
+            #[cfg(windows)]
+            Started::Elevated(process) => Ok(process.try_wait()),
+        }
+    }
+
+    fn kill(&mut self) {
+        match self {
+            Started::Child(child) => {
+                let _ = child.kill();
+            }
+            #[cfg(windows)]
+            Started::Elevated(process) => process.kill(),
+        }
+    }
+}
+
+fn follow(app: AppHandle, game: Game, mut child: Started, started_at: u64, stop: Arc<AtomicBool>) {
     let root = path_key(&game.install_dir);
     let own_pid = Pid::from_u32(std::process::id());
     let mut system = System::new();
@@ -177,12 +223,25 @@ fn follow(app: AppHandle, game: Game, mut child: std::process::Child, started_at
     let mut exit_code = None;
     let mut child_alive = true;
 
+    // Show the game on Discord while it runs; dropping the presence clears it.
+    let presence = {
+        let settings = app.state::<AppState>().settings().clone();
+        let app_id = if settings.discord_app_id.trim().is_empty() {
+            crate::discord::DEFAULT_APP_ID.to_owned()
+        } else {
+            settings.discord_app_id.clone()
+        };
+        (settings.discord_presence && game.show_on_discord)
+            .then(|| crate::discord::Presence::show(&app_id, &game.name, started_at))
+            .flatten()
+    };
+
     loop {
         if child_alive {
             match child.try_wait() {
-                Ok(Some(status)) => {
+                Ok(Some(code)) => {
                     child_alive = false;
-                    exit_code = status.code();
+                    exit_code = code;
                 }
                 Ok(None) => {}
                 Err(_) => child_alive = false,
@@ -199,7 +258,7 @@ fn follow(app: AppHandle, game: Game, mut child: std::process::Child, started_at
 
         if stop.load(Ordering::Relaxed) {
             if child_alive {
-                let _ = child.kill();
+                child.kill();
             }
             for pid in &related {
                 if let Some(process) = system.process(*pid) {
@@ -214,6 +273,7 @@ fn follow(app: AppHandle, game: Game, mut child: std::process::Child, started_at
         thread::sleep(Duration::from_millis(if child_alive { 1000 } else { 2000 }));
     }
 
+    drop(presence);
     let ended_at = now_secs();
     let state = app.state::<AppState>();
     state.sessions().remove(&game.id);
@@ -226,12 +286,24 @@ fn follow(app: AppHandle, game: Game, mut child: std::process::Child, started_at
 
     // Keep a copy of the saves this session produced. The save folder may have been changed
     // in Properties while the game ran, so use the library's current entry.
-    let latest = updated.clone().unwrap_or_else(|| game.clone());
+    let mut latest = updated.clone().unwrap_or_else(|| game.clone());
+    // A game that saved for the first time may now have a save folder the database knows.
+    if latest.save_dir.is_none()
+        && let Some(db) = state.savedb().clone()
+        && let Some(dir) = crate::savedb::save_dirs(&db, &latest).into_iter().next()
+        && let Ok(found) = state.library().update(&game.id, |g| g.save_dir = Some(dir))
+    {
+        let _ = app.emit(GAME_EVENT, &found);
+        latest = found;
+    }
     if latest.backup_saves
         && let Some(dir) = &latest.save_dir
     {
         match saves::backup(dir, &state.paths.save_backups(&game.id), BackupReason::AfterSession) {
-            Ok(Some(b)) => log::info!("backed up {} save files", b.files),
+            Ok(Some(b)) => {
+                log::info!("backed up {} save files", b.files);
+                crate::savedb::mirror_to_cloud(&app, &latest);
+            }
             Ok(None) => {}
             Err(e) => log::warn!("could not back up saves: {e}"),
         }
@@ -248,6 +320,8 @@ fn follow(app: AppHandle, game: Game, mut child: std::process::Child, started_at
         },
     );
 
+    crate::system::refresh_tray(&app);
+
     let settings = state.settings().clone();
     if settings.restore_on_exit
         && settings.launch_behavior != LaunchBehavior::KeepOpen
@@ -256,6 +330,116 @@ fn follow(app: AppHandle, game: Game, mut child: std::process::Child, started_at
         let _ = window.show();
         let _ = window.unminimize();
         let _ = window.set_focus();
+    }
+}
+
+/// Starting a program as administrator through Windows' UAC prompt.
+#[cfg(windows)]
+mod elevated {
+    use std::ffi::OsStr;
+    use std::process::Command;
+
+    use windows::Win32::Foundation::{CloseHandle, ERROR_CANCELLED, HANDLE, WAIT_OBJECT_0};
+    use windows::Win32::System::Threading::{GetExitCodeProcess, TerminateProcess, WaitForSingleObject};
+    use windows::Win32::UI::Shell::{SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW, ShellExecuteExW};
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+    use windows::core::{HSTRING, PCWSTR, w};
+
+    /// The started program. Without a handle (Windows does not always give one), Starex follows
+    /// the game through the processes in its folder instead.
+    pub struct Process(Option<HANDLE>);
+
+    // SAFETY: a process handle can be waited on and closed from any thread.
+    unsafe impl Send for Process {}
+
+    impl Process {
+        pub fn try_wait(&mut self) -> Option<Option<i32>> {
+            let Some(handle) = self.0 else { return Some(None) };
+            // SAFETY: the handle is open until `drop`.
+            unsafe {
+                if WaitForSingleObject(handle, 0) != WAIT_OBJECT_0 {
+                    return None;
+                }
+                let mut code = 0u32;
+                Some(GetExitCodeProcess(handle, &mut code).ok().map(|_| code as i32))
+            }
+        }
+
+        /// Best effort: Windows may not let Starex end a program running as administrator.
+        pub fn kill(&mut self) {
+            if let Some(handle) = self.0 {
+                // SAFETY: the handle is open until `drop`.
+                unsafe {
+                    let _ = TerminateProcess(handle, 1);
+                }
+            }
+        }
+    }
+
+    impl Drop for Process {
+        fn drop(&mut self) {
+            if let Some(handle) = self.0.take() {
+                // SAFETY: closed exactly once.
+                unsafe {
+                    let _ = CloseHandle(handle);
+                }
+            }
+        }
+    }
+
+    /// Starts `command` as administrator. Windows shows its UAC prompt first.
+    pub fn spawn(command: &Command) -> Result<Process, String> {
+        if command.get_envs().next().is_some() {
+            log::warn!("environment variables are not passed to a game started as administrator");
+        }
+        let file = HSTRING::from(command.get_program());
+        let parameters = HSTRING::from(join_args(command.get_args()));
+        let directory = command.get_current_dir().map(|d| HSTRING::from(d.as_os_str()));
+        let mut info = SHELLEXECUTEINFOW {
+            cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
+            fMask: SEE_MASK_NOCLOSEPROCESS,
+            lpVerb: w!("runas"),
+            lpFile: PCWSTR(file.as_ptr()),
+            lpParameters: PCWSTR(parameters.as_ptr()),
+            lpDirectory: directory.as_ref().map_or(PCWSTR::null(), |d| PCWSTR(d.as_ptr())),
+            nShow: SW_SHOWNORMAL.0,
+            ..Default::default()
+        };
+        // SAFETY: `info` and the strings it points to live until the call returns.
+        if let Err(e) = unsafe { ShellExecuteExW(&mut info) } {
+            return Err(if e.code() == ERROR_CANCELLED.to_hresult() {
+                "it needs to run as administrator, and the Windows prompt was declined.".to_owned()
+            } else {
+                format!("Windows could not start it as administrator ({}).", e.message())
+            });
+        }
+        Ok(Process((!info.hProcess.is_invalid()).then_some(info.hProcess)))
+    }
+
+    /// Joins arguments into one Windows command line, quoting the way programs parse it back.
+    pub(super) fn join_args<'a>(args: impl Iterator<Item = &'a OsStr>) -> String {
+        args.map(|a| quote(&a.to_string_lossy())).collect::<Vec<_>>().join(" ")
+    }
+
+    fn quote(arg: &str) -> String {
+        if !arg.is_empty() && !arg.contains([' ', '\t', '"']) {
+            return arg.to_owned();
+        }
+        let mut out = String::from('"');
+        let mut backslashes = 0;
+        for c in arg.chars() {
+            if c == '\\' {
+                backslashes += 1;
+                continue;
+            }
+            let escape = if c == '"' { backslashes * 2 + 1 } else { backslashes };
+            out.extend(std::iter::repeat_n('\\', escape));
+            out.push(c);
+            backslashes = 0;
+        }
+        out.extend(std::iter::repeat_n('\\', backslashes * 2));
+        out.push('"');
+        out
     }
 }
 
@@ -303,6 +487,17 @@ mod tests {
         assert!(exit_hint(Some(0xC000_0135_u32 as i32)).unwrap().contains("DLL"));
         assert!(exit_hint(Some(0)).is_none());
         assert!(exit_hint(None).is_none());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn quotes_arguments_for_an_elevated_start() {
+        use std::ffi::OsStr;
+        let args = ["-windowed", "-profile=My Save", "", r#"say "hi""#, r"C:\My Games\"];
+        assert_eq!(
+            elevated::join_args(args.iter().map(OsStr::new)),
+            r#"-windowed "-profile=My Save" "" "say \"hi\"" "C:\My Games\\""#
+        );
     }
 
     #[test]

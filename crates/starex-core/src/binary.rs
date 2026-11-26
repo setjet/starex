@@ -6,6 +6,7 @@
 //! | ELF | Linux |
 //! | Mach-O and `.app` bundles | macOS (x64 programs through Rosetta on Apple silicon) |
 //! | Scripts starting with `#!` | Linux and macOS |
+//! | Batch launchers (`.bat`, `.cmd`) | Windows |
 
 use std::fs::File;
 use std::io::Read;
@@ -23,6 +24,8 @@ pub enum Format {
     MachO,
     AppBundle,
     Script,
+    /// A Windows batch launcher (`.bat` or `.cmd`), run by the command prompt.
+    Batch,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -44,6 +47,15 @@ pub fn probe(path: &Path) -> Result<Binary, PeProblem> {
         return Ok(Binary {
             format: Format::AppBundle,
             ..binary
+        });
+    }
+    if is_batch(path) {
+        File::open(path).map_err(|_| PeProblem::Unreadable)?;
+        return Ok(Binary {
+            format: Format::Batch,
+            arch: Arch::Unknown,
+            subsystem: None,
+            is_library: false,
         });
     }
     let mut head = [0u8; 64];
@@ -139,6 +151,7 @@ pub(crate) fn support_on(os: &str, host_arch: &str, binary: &Binary) -> HostSupp
     }
     match (os, binary.format) {
         ("windows", Format::Pe) => pe::host_support_on(host_arch, binary.arch),
+        ("windows", Format::Batch) => Native,
         ("windows", _) => Unsupported,
         (_, Format::Pe) => Compat,
         (_, Format::Script) => Native,
@@ -154,6 +167,14 @@ pub(crate) fn support_on(os: &str, host_arch: &str, binary: &Binary) -> HostSupp
         },
         _ => Unsupported,
     }
+}
+
+/// A `.bat` or `.cmd` file: how ports and fan patches often start a game on Windows.
+pub fn is_batch(path: &Path) -> bool {
+    path.is_file()
+        && path
+            .extension()
+            .is_some_and(|e| e.eq_ignore_ascii_case("bat") || e.eq_ignore_ascii_case("cmd"))
 }
 
 fn is_app_bundle(path: &Path) -> bool {

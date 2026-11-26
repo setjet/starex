@@ -17,6 +17,8 @@ import type {
   SaveLocation,
   ScanReport,
   ScanSummary,
+  Runtime,
+  Release,
 } from "./types";
 
 /** Typed wrappers over the Rust commands in `src-tauri/src/commands.rs`. */
@@ -48,8 +50,17 @@ export const api = {
   listSaveBackups: (id: string) => invoke<SaveBackup[]>("list_save_backups", { id }),
   backupSaves: (id: string) => invoke<SaveBackup | null>("backup_saves", { id }),
   restoreSaves: (id: string, backupId: string) => invoke<void>("restore_saves", { id, backupId }),
+  checkRuntimes: (id: string) => invoke<Runtime[]>("check_runtimes", { id }),
+  installRuntime: (id: string, runtimeId: string) => invoke<void>("install_runtime", { id, runtimeId }),
+  createShortcut: (id: string, place: "desktop" | "startMenu") => invoke<string>("create_shortcut", { id, place }),
+  launchLink: (id: string) => invoke<string>("launch_link", { id }),
+  takeLaunchRequest: () => invoke<string | null>("take_launch_request"),
+  fetchDetails: (id: string) => invoke<Game>("fetch_details", { id }),
+  setBackdropImage: (source: string) => invoke<Settings>("set_backdrop_image", { source }),
+  setOffline: (id: string, offline: boolean) => invoke<Game>("set_offline", { id, offline }),
   openDataDir: () => invoke<void>("open_data_dir"),
   openLink: (url: string) => invoke<void>("open_link", { url }),
+  fetchChangelog: () => invoke<Release[]>("fetch_changelog"),
 };
 
 export const events = {
@@ -57,6 +68,8 @@ export const events = {
     listen<SessionEvent>("starex://session", (e) => handler(e.payload)),
   gameUpdated: (handler: (g: Game) => void): Promise<UnlistenFn> =>
     listen<Game>("starex://game-updated", (e) => handler(e.payload)),
+  playRequest: (handler: (gameId: string) => void): Promise<UnlistenFn> =>
+    listen<string>("starex://play-request", (e) => handler(e.payload)),
   scanFinished: (handler: (r: ScanReport) => void): Promise<UnlistenFn> =>
     listen<ScanReport>("starex://scan-finished", (e) => handler(e.payload)),
   taskProgress: (handler: (p: TaskProgress) => void): Promise<UnlistenFn> =>

@@ -13,6 +13,7 @@ use crate::binary::{self, Format};
 use crate::manifest::{self, MANIFEST_FILE, Manifest, Progress, Tracker};
 use crate::model::{Game, VerificationSummary};
 use crate::pe::{HostSupport, PeProblem};
+use crate::runtimes;
 use crate::saves;
 use crate::util::now_secs;
 
@@ -141,10 +142,13 @@ pub fn verify(
     });
 
     // 2. The executable.
-    checks.push(executable_check(&game.executable));
+    let executable = executable_check(&game.executable);
+    let runnable = executable.status != CheckStatus::Fail;
+    checks.push(executable);
 
-    // 3. Console packages that cannot run here.
-    if folder_ok && contains_xvc(root) {
+    // 3. Console packages that cannot run here. A PC port that kept a few console files next
+    //    to a working program is fine, so this only fails when the program itself cannot run.
+    if folder_ok && !runnable && contains_xvc(root) {
         checks.push(Check {
             id: "package",
             title: "Platform".into(),
@@ -158,7 +162,12 @@ pub fn verify(
         checks.push(saves_check(game));
     }
 
-    // 5. Files against the manifest.
+    // 5. System runtimes the game needs (Windows).
+    if folder_ok && let Some(check) = runtimes_check(game) {
+        checks.push(check);
+    }
+
+    // 6. Files against the manifest.
     if folder_ok {
         let shipped = root.join(MANIFEST_FILE);
         let loaded = match Manifest::load(&shipped) {
@@ -230,7 +239,7 @@ fn executable_check(exe: &Path) -> Check {
             Ok(info) => {
                 let arch = info.arch.label();
                 match binary::support(&info) {
-                    HostSupport::Native if info.format == Format::Script => {
+                    HostSupport::Native if matches!(info.format, Format::Script | Format::Batch) => {
                         (CheckStatus::Pass, format!("{name} · launch script"))
                     }
                     HostSupport::Native => (CheckStatus::Pass, format!("{name} · {arch}")),
@@ -269,6 +278,32 @@ fn executable_check(exe: &Path) -> Check {
         detail,
         status,
     }
+}
+
+fn runtimes_check(game: &Game) -> Option<Check> {
+    let list = runtimes::check(&game.executable, &game.install_dir);
+    if list.is_empty() {
+        return None;
+    }
+    let missing: Vec<&str> = list.iter().filter(|r| !r.installed).map(|r| r.name.as_str()).collect();
+    let (status, detail) = if missing.is_empty() {
+        let names: Vec<&str> = list.iter().map(|r| r.name.as_str()).collect();
+        (CheckStatus::Pass, format!("{} installed.", names.join(", ")))
+    } else {
+        (
+            CheckStatus::Warn,
+            format!(
+                "Missing: {}. Starex offers to install it when you press Play.",
+                missing.join(", ")
+            ),
+        )
+    };
+    Some(Check {
+        id: "runtimes",
+        title: "Runtimes".into(),
+        detail,
+        status,
+    })
 }
 
 /// Games save either next to their files or in a save folder; both must accept new files.
@@ -493,6 +528,15 @@ mod tests {
             save_dir: None,
             backup_saves: true,
             last_scan: None,
+            tags: Vec::new(),
+            hidden: false,
+            completed: false,
+            history: Vec::new(),
+            profiles: Vec::new(),
+            active_profile: None,
+            details: None,
+            show_on_discord: true,
+            offline: false,
         }
     }
 
@@ -577,5 +621,46 @@ mod tests {
             &|_| {},
         );
         assert_eq!(report.status, CheckStatus::Fail);
+    }
+
+    #[test]
+    fn stray_console_files_do_not_fail_a_working_port() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("game.exe"), fake_pe(0x8664, 2)).unwrap();
+        fs::write(dir.path().join("leftover.xvc"), b"xvc").unwrap();
+        let run = |g: &Game| {
+            verify(
+                g,
+                &dir.path().join("b.json"),
+                VerifyMode::Quick,
+                &AtomicBool::new(false),
+                &|_| {},
+            )
+        };
+        let report = run(&game(dir.path()));
+        assert!(report.checks.iter().all(|c| c.id != "package"));
+        assert_ne!(report.status, CheckStatus::Fail);
+
+        // Only console files and an unreadable program: that still fails.
+        fs::write(dir.path().join("game.exe"), vec![0x11u8; 512]).unwrap();
+        let report = run(&game(dir.path()));
+        assert!(
+            report
+                .checks
+                .iter()
+                .any(|c| c.id == "package" && c.status == CheckStatus::Fail)
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn batch_launchers_pass() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::write(dir.path().join("Launch.bat"), "@echo off\r\nstart game.exe\r\n").unwrap();
+        let mut g = game(dir.path());
+        g.executable = dir.path().join("Launch.bat");
+        let check = executable_check(&g.executable);
+        assert_eq!(check.status, CheckStatus::Pass, "{}", check.detail);
+        assert!(check.detail.contains("launch script"));
     }
 }

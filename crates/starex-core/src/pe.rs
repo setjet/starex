@@ -126,9 +126,118 @@ pub fn read_pe(path: &Path) -> Result<PeInfo, PeProblem> {
     })
 }
 
+fn read_exact_at(file: &mut File, offset: u64, buf: &mut [u8]) -> bool {
+    file.seek(SeekFrom::Start(offset))
+        .and_then(|_| file.read_exact(buf))
+        .is_ok()
+}
+
+fn le32(bytes: &[u8], at: usize) -> u32 {
+    bytes
+        .get(at..at + 4)
+        .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+        .unwrap_or(0)
+}
+
+/// The DLLs a program loads, from its import and delay-load tables, lower-cased and sorted.
+///
+/// Only headers and the import tables are read, so this is fast even for very large programs.
+pub fn imports(path: &Path) -> Result<Vec<String>, PeProblem> {
+    let mut file = File::open(path).map_err(|_| PeProblem::Unreadable)?;
+    let mut dos = [0u8; 64];
+    if !read_exact_at(&mut file, 0, &mut dos) || &dos[0..2] != b"MZ" {
+        return Err(PeProblem::NotExecutable);
+    }
+    let nt = le32(&dos, 60) as u64;
+    let mut coff = [0u8; 24];
+    if !read_exact_at(&mut file, nt, &mut coff) || &coff[0..4] != b"PE\0\0" {
+        return Err(PeProblem::NotExecutable);
+    }
+    let sections = u16::from_le_bytes([coff[6], coff[7]]) as usize;
+    let optional_size = u16::from_le_bytes([coff[20], coff[21]]) as usize;
+    let mut optional = vec![0u8; optional_size];
+    if !read_exact_at(&mut file, nt + 24, &mut optional) || optional.len() < 2 {
+        return Err(PeProblem::NotExecutable);
+    }
+    // Data directories start 96 bytes into a PE32 optional header and 112 into PE32+.
+    let directories = match u16::from_le_bytes([optional[0], optional[1]]) {
+        0x10b => 96,
+        0x20b => 112,
+        _ => return Err(PeProblem::NotExecutable),
+    };
+    let directory = |index: usize| le32(&optional, directories + index * 8);
+
+    let mut table = vec![0u8; sections.min(96) * 40];
+    if !read_exact_at(&mut file, nt + 24 + optional_size as u64, &mut table) {
+        return Err(PeProblem::NotExecutable);
+    }
+    let to_offset = |rva: u32| -> Option<u64> {
+        table.chunks_exact(40).find_map(|s| {
+            let (virtual_size, address) = (le32(s, 8), le32(s, 12));
+            let (raw_size, raw) = (le32(s, 16), le32(s, 20));
+            let size = virtual_size.max(raw_size);
+            (rva >= address && rva < address.saturating_add(size)).then(|| u64::from(rva - address + raw))
+        })
+    };
+    let read_name = |file: &mut File, rva: u32| -> Option<String> {
+        let mut buf = [0u8; 128];
+        let offset = to_offset(rva)?;
+        file.seek(SeekFrom::Start(offset)).ok()?;
+        let n = file.read(&mut buf).ok()?;
+        let end = buf[..n].iter().position(|b| *b == 0)?;
+        let name = std::str::from_utf8(&buf[..end]).ok()?;
+        (!name.is_empty()).then(|| name.to_ascii_lowercase())
+    };
+
+    let mut names = Vec::new();
+    // Import directory (index 1): 20-byte descriptors, name RVA at +12.
+    // Delay-load directory (index 13): 32-byte descriptors, name RVA at +4.
+    for (index, size, name_at) in [(1usize, 20usize, 12usize), (13, 32, 4)] {
+        let rva = directory(index);
+        let Some(mut offset) = (rva != 0).then(|| to_offset(rva)).flatten() else {
+            continue;
+        };
+        for _ in 0..1024 {
+            let mut descriptor = vec![0u8; size];
+            if !read_exact_at(&mut file, offset, &mut descriptor) || descriptor.iter().all(|b| *b == 0) {
+                break;
+            }
+            if let Some(name) = read_name(&mut file, le32(&descriptor, name_at)) {
+                names.push(name);
+            }
+            offset += size as u64;
+        }
+    }
+    names.sort();
+    names.dedup();
+    Ok(names)
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn reads_imports_of_a_real_program() {
+        let notepad = std::path::Path::new(r"C:\Windows\System32\notepad.exe");
+        if notepad.is_file() {
+            let names = imports(notepad).unwrap();
+            assert!(names.iter().any(|n| n == "user32.dll"), "{names:?}");
+        }
+    }
+
+    #[test]
+    fn a_program_without_imports_has_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let exe = dir.path().join("a.exe");
+        let mut bytes = fake_pe(0x8664, 2);
+        bytes.resize(0x80 + 24 + 240, 0);
+        bytes[0x80 + 20..0x80 + 22].copy_from_slice(&240u16.to_le_bytes());
+        std::fs::write(&exe, bytes).unwrap();
+        assert_eq!(imports(&exe), Ok(Vec::new()));
+        assert_eq!(imports(&dir.path().join("none.exe")), Err(PeProblem::Unreadable));
+    }
 
     /// Builds a minimal PE header for tests.
     pub(crate) fn fake_pe(machine: u16, subsystem: u16) -> Vec<u8> {

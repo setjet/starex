@@ -10,6 +10,7 @@ use starex_core::antivirus::{self, ScanReport, ScanStatus, ScanSummary};
 use starex_core::inspect::{self, FolderInspection};
 use starex_core::manifest::{self, Manifest, Progress};
 use starex_core::model::{Artwork, ArtworkKind, Game, GamePatch, NewGame};
+use starex_core::runtimes::{self, Runtime};
 use starex_core::saves::{self, BackupReason, SaveBackup, SaveLocation};
 use starex_core::settings::Settings;
 use starex_core::verify::{self, VerifyMode, VerifyReport};
@@ -17,13 +18,23 @@ use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_opener::OpenerExt;
 
 use crate::artwork;
+use crate::details;
+use crate::firewall;
+use crate::releases;
+use crate::savedb;
 use crate::sessions::{self, GAME_EVENT};
+use crate::shortcuts::{self, Place};
 use crate::state::{self, AppState};
+use crate::system;
 
 type CmdResult<T> = Result<T, String>;
 
 const TASK_EVENT: &str = "starex://task-progress";
+/// Asks the interface to start a game (from a shortcut or a starex:// link).
+pub const PLAY_EVENT: &str = "starex://play-request";
 const REPOSITORY: &str = "https://github.com/setjet/starex";
+/// The creator's X profile, linked from Settings > About.
+const CREATOR_X: &str = "https://x.com/inthecayenne";
 
 fn err(e: impl std::fmt::Display) -> String {
     e.to_string()
@@ -43,6 +54,10 @@ pub struct Bootstrap {
     settings: Settings,
     running: Vec<RunningGame>,
     data_dir: PathBuf,
+    /// Started with the system: stay in the tray instead of opening the window.
+    start_hidden: bool,
+    /// Starex ships with its own Discord application ID.
+    discord_builtin: bool,
     host_arch: &'static str,
     host_os: &'static str,
     repository: &'static str,
@@ -62,6 +77,8 @@ pub fn bootstrap(state: State<'_, AppState>) -> Bootstrap {
             })
             .collect(),
         data_dir: state.paths.root.clone(),
+        start_hidden: std::env::args().any(|a| a == system::START_HIDDEN_ARG),
+        discord_builtin: !crate::discord::DEFAULT_APP_ID.is_empty(),
         host_arch: std::env::consts::ARCH,
         host_os: std::env::consts::OS,
         repository: REPOSITORY,
@@ -100,6 +117,19 @@ pub async fn add_game(
         .map_err(err)?;
 
     let settings = state.settings().clone();
+    // Find the save folder in the background from the save database, and the game's details.
+    {
+        let (app, id) = (app.clone(), added.id.clone());
+        let wants_details =
+            !settings.igdb_client_id.trim().is_empty() && !settings.igdb_client_secret.trim().is_empty();
+        tauri::async_runtime::spawn(async move {
+            detect_save_dir(&app, &id).await;
+            if wants_details && let Err(e) = find_details(&app, &id).await {
+                log::info!("automatic game details skipped: {e}");
+            }
+        });
+    }
+    system::refresh_tray(&app);
     if settings.auto_artwork && !settings.steamgriddb_key.trim().is_empty() {
         match fetch(&app, &added.id, false).await {
             Ok(updated) => added = updated,
@@ -110,18 +140,22 @@ pub async fn add_game(
 }
 
 #[tauri::command]
-pub fn update_game(state: State<'_, AppState>, id: String, patch: GamePatch) -> CmdResult<Game> {
-    state.library().patch(&id, patch).map_err(err)
+pub fn update_game(app: AppHandle, id: String, patch: GamePatch) -> CmdResult<Game> {
+    let game = app.state::<AppState>().library().patch(&id, patch).map_err(err)?;
+    system::refresh_tray(&app);
+    Ok(game)
 }
 
 #[tauri::command]
-pub fn remove_game(state: State<'_, AppState>, id: String) -> CmdResult<()> {
+pub fn remove_game(app: AppHandle, id: String) -> CmdResult<()> {
+    let state = app.state::<AppState>();
     if state.sessions().contains_key(&id) {
         return Err("Close the game before removing it from your library.".into());
     }
     state.library().remove(&id).map_err(err)?;
     artwork::remove_all(&state.paths, &id);
     manifest::delete(&state.paths.baseline(&id)).map_err(err)?;
+    system::refresh_tray(&app);
     Ok(())
 }
 
@@ -337,13 +371,89 @@ pub fn cancel_task(state: State<'_, AppState>, id: String) {
     }
 }
 
+/// Saves Settings and applies the ones that change the system (the global shortcut, starting
+/// with the system). A change the system refuses is undone and reported.
 #[tauri::command]
-pub fn save_settings(state: State<'_, AppState>, settings: Settings) -> CmdResult<Settings> {
+pub fn save_settings(app: AppHandle, settings: Settings) -> CmdResult<Settings> {
+    let state = app.state::<AppState>();
+    let previous = state.settings().clone();
     let mut settings = settings;
     settings.steamgriddb_key = settings.steamgriddb_key.trim().to_owned();
+    settings.igdb_client_id = settings.igdb_client_id.trim().to_owned();
+    settings.igdb_client_secret = settings.igdb_client_secret.trim().to_owned();
+    settings.discord_app_id = settings.discord_app_id.trim().to_owned();
+    settings.global_shortcut = settings.global_shortcut.trim().to_owned();
+
+    let mut problem = None;
+    if settings.global_shortcut != previous.global_shortcut
+        && let Err(e) = system::apply_shortcut(&app, &settings.global_shortcut)
+    {
+        settings.global_shortcut = previous.global_shortcut.clone();
+        let _ = system::apply_shortcut(&app, &previous.global_shortcut);
+        problem = Some(e);
+    }
+    if settings.start_with_system != previous.start_with_system
+        && let Err(e) = system::apply_autostart(&app, settings.start_with_system)
+    {
+        settings.start_with_system = previous.start_with_system;
+        problem = Some(e);
+    }
+    settings.save(&state.paths.settings).map_err(err)?;
+    *state.settings() = settings.clone();
+    match problem {
+        Some(e) => Err(e),
+        None => Ok(settings),
+    }
+}
+
+/// Uses an image as the window's backdrop and switches the backdrop to it.
+#[tauri::command]
+pub fn set_backdrop_image(state: State<'_, AppState>, source: PathBuf) -> CmdResult<Settings> {
+    let stored = artwork::import_backdrop(&state.paths, &source)?;
+    let mut settings = state.settings().clone();
+    settings.backdrop_image = stored.display().to_string();
+    settings.backdrop = starex_core::settings::Backdrop::Custom;
     settings.save(&state.paths.settings).map_err(err)?;
     *state.settings() = settings.clone();
     Ok(settings)
+}
+
+async fn find_details(app: &AppHandle, id: &str) -> CmdResult<Game> {
+    let state = app.state::<AppState>();
+    let game = state.library().get(id).map_err(err)?.clone();
+    let (client_id, secret) = {
+        let s = state.settings();
+        (s.igdb_client_id.clone(), s.igdb_client_secret.clone())
+    };
+    let found = details::fetch(&state.http, &client_id, &secret, &game.name).await?;
+    let updated = state.library().update(id, |g| g.details = Some(found)).map_err(err)?;
+    let _ = app.emit(GAME_EVENT, &updated);
+    Ok(updated)
+}
+
+/// Looks the game up on IGDB: description, genres, release date, developer, time to beat.
+#[tauri::command]
+pub async fn fetch_details(app: AppHandle, id: String) -> CmdResult<Game> {
+    find_details(&app, &id).await
+}
+
+/// Starex's release notes from GitHub, newest first, for the changelog.
+#[tauri::command]
+pub async fn fetch_changelog(state: State<'_, AppState>) -> CmdResult<Vec<releases::Release>> {
+    releases::fetch(&state.http).await
+}
+
+/// Blocks or allows the game's internet access with Windows Firewall.
+#[tauri::command]
+pub async fn set_offline(app: AppHandle, id: String, offline: bool) -> CmdResult<Game> {
+    let state = app.state::<AppState>();
+    let game = state.library().get(&id).map_err(err)?.clone();
+    tauri::async_runtime::spawn_blocking(move || firewall::set(&game, offline))
+        .await
+        .map_err(err)??;
+    let updated = state.library().update(&id, |g| g.offline = offline).map_err(err)?;
+    let _ = app.emit(GAME_EVENT, &updated);
+    Ok(updated)
 }
 
 pub const SCAN_EVENT: &str = "starex://scan-finished";
@@ -426,11 +536,46 @@ pub async fn scan_game(app: AppHandle, id: String) -> CmdResult<ScanReport> {
     run_scan(&app, &id).await
 }
 
+/// Sets a game's save folder from the save database, when it has none and the database knows one
+/// that exists.
+async fn detect_save_dir(app: &AppHandle, id: &str) {
+    let state = app.state::<AppState>();
+    let Ok(game) = state.library().get(id).cloned() else {
+        return;
+    };
+    if game.save_dir.is_some() {
+        return;
+    }
+    let Some(db) = savedb::get(app).await else { return };
+    if let Some(dir) = savedb::save_dirs(&db, &game).into_iter().next() {
+        log::info!("save folder for {} found in the save database", game.name);
+        if let Ok(updated) = state.library().update(id, |g| {
+            if g.save_dir.is_none() {
+                g.save_dir = Some(dir);
+            }
+        }) {
+            let _ = app.emit(GAME_EVENT, &updated);
+        }
+    }
+}
+
 #[tauri::command]
 pub async fn suggest_save_locations(app: AppHandle, id: String) -> CmdResult<Vec<SaveLocation>> {
     let game = app.state::<AppState>().library().get(&id).map_err(err)?.clone();
+    let db = savedb::get(&app).await;
     tauri::async_runtime::spawn_blocking(move || {
-        saves::suggest_locations(&game.name, &game.install_dir, &state::save_roots())
+        let mut found: Vec<SaveLocation> = db
+            .map(|db| savedb::save_dirs(&db, &game))
+            .unwrap_or_default()
+            .into_iter()
+            .map(|dir| saves::location(dir, true))
+            .collect();
+        for guess in saves::suggest_locations(&game.name, &game.install_dir, &state::save_roots()) {
+            if !found.iter().any(|f| f.path == guess.path) {
+                found.push(guess);
+            }
+        }
+        found
     })
     .await
     .map_err(err)
@@ -456,10 +601,61 @@ pub async fn backup_saves(app: AppHandle, id: String) -> CmdResult<Option<SaveBa
     let game = state.library().get(&id).map_err(err)?.clone();
     let source = save_folder(&game)?;
     let target = state.paths.save_backups(&id);
-    tauri::async_runtime::spawn_blocking(move || saves::backup(&source, &target, BackupReason::Manual))
+    let backup = tauri::async_runtime::spawn_blocking(move || saves::backup(&source, &target, BackupReason::Manual))
         .await
         .map_err(err)?
+        .map_err(err)?;
+    savedb::mirror_to_cloud(&app, &game);
+    Ok(backup)
+}
+
+/// The system runtimes a game needs and whether each is installed.
+#[tauri::command]
+pub async fn check_runtimes(app: AppHandle, id: String) -> CmdResult<Vec<Runtime>> {
+    let game = app.state::<AppState>().library().get(&id).map_err(err)?.clone();
+    tauri::async_runtime::spawn_blocking(move || runtimes::check(&game.executable, &game.install_dir))
+        .await
         .map_err(err)
+}
+
+/// Starts a runtime's installer from the game folder, or opens Microsoft's download.
+#[tauri::command]
+pub async fn install_runtime(app: AppHandle, id: String, runtime_id: String) -> CmdResult<()> {
+    let game = app.state::<AppState>().library().get(&id).map_err(err)?.clone();
+    let list = tauri::async_runtime::spawn_blocking(move || runtimes::check(&game.executable, &game.install_dir))
+        .await
+        .map_err(err)?;
+    let runtime = list
+        .into_iter()
+        .find(|r| r.id == runtime_id)
+        .ok_or("This runtime is no longer needed.")?;
+    let opener = app.opener();
+    if let Some(installer) = runtime.installer {
+        // Opened through the shell, so Windows asks for administrator rights when it needs them.
+        opener.open_path(installer.to_string_lossy(), None::<&str>).map_err(err)
+    } else if let Some(url) = runtime.download {
+        opener.open_url(url, None::<&str>).map_err(err)
+    } else {
+        Err("No installer is available for this runtime.".into())
+    }
+}
+
+/// Creates a desktop or Start menu shortcut that starts the game through Starex.
+#[tauri::command]
+pub fn create_shortcut(state: State<'_, AppState>, id: String, place: Place) -> CmdResult<String> {
+    let game = state.library().get(&id).map_err(err)?.clone();
+    shortcuts::create(&game, place).map(|p| p.display().to_string())
+}
+
+#[tauri::command]
+pub fn launch_link(id: String) -> String {
+    shortcuts::link(&id)
+}
+
+/// A game Starex was opened to start (from a shortcut or link), handed over once.
+#[tauri::command]
+pub fn take_launch_request(state: State<'_, AppState>) -> Option<String> {
+    state.launch_request().take()
 }
 
 #[tauri::command]
@@ -513,7 +709,13 @@ pub fn open_data_dir(app: AppHandle) -> CmdResult<()> {
 /// Opens one of the few web pages the UI links to.
 #[tauri::command]
 pub fn open_link(app: AppHandle, url: String) -> CmdResult<()> {
-    let allowed = [REPOSITORY, "https://www.steamgriddb.com/"];
+    let allowed = [
+        REPOSITORY,
+        "https://www.steamgriddb.com/",
+        "https://dev.twitch.tv/",
+        "https://discord.com/developers/",
+        CREATOR_X,
+    ];
     if !allowed.iter().any(|prefix| url.starts_with(prefix)) {
         return Err("Starex only opens its own links.".into());
     }

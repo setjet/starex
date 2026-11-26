@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 
 use serde::{Deserialize, Serialize};
 
-use crate::model::{Game, GamePatch, NewGame};
+use crate::model::{Game, GamePatch, MAX_HISTORY, NewGame, PlaySession};
 use crate::util::{now_secs, read_json, write_json_atomic};
 use crate::{Error, Result};
 
@@ -81,6 +81,15 @@ impl Library {
             save_dir: None,
             backup_saves: true,
             last_scan: None,
+            tags: Vec::new(),
+            hidden: false,
+            completed: false,
+            history: Vec::new(),
+            profiles: Vec::new(),
+            active_profile: None,
+            details: None,
+            show_on_discord: true,
+            offline: false,
         };
         self.games.push(game.clone());
         self.save()?;
@@ -124,6 +133,46 @@ impl Library {
             if let Some(backup) = patch.backup_saves {
                 game.backup_saves = backup;
             }
+            if let Some(tags) = patch.tags {
+                let mut clean: Vec<String> = Vec::new();
+                for tag in tags {
+                    let tag = tag.trim().to_owned();
+                    if !tag.is_empty() && !clean.iter().any(|t| t.eq_ignore_ascii_case(&tag)) {
+                        clean.push(tag);
+                    }
+                }
+                game.tags = clean;
+            }
+            if let Some(hidden) = patch.hidden {
+                game.hidden = hidden;
+            }
+            if let Some(completed) = patch.completed {
+                game.completed = completed;
+            }
+            if let Some(profiles) = patch.profiles {
+                game.profiles = profiles
+                    .into_iter()
+                    .filter(|p| !p.name.trim().is_empty())
+                    .map(|mut p| {
+                        p.name = p.name.trim().to_owned();
+                        p.launch_args = p.launch_args.trim().to_owned();
+                        p
+                    })
+                    .collect();
+                let still_there = game
+                    .active_profile
+                    .as_ref()
+                    .is_some_and(|id| game.profiles.iter().any(|p| &p.id == id));
+                if !still_there {
+                    game.active_profile = None;
+                }
+            }
+            if let Some(active) = patch.active_profile {
+                game.active_profile = active.filter(|id| game.profiles.iter().any(|p| &p.id == id));
+            }
+            if let Some(show) = patch.show_on_discord {
+                game.show_on_discord = show;
+            }
         })
     }
 
@@ -140,6 +189,14 @@ impl Library {
     pub fn record_session(&mut self, id: &str, started_at: u64, ended_at: u64) -> Result<Game> {
         self.update(id, |game| {
             game.sessions = game.sessions.saturating_add(1);
+            game.history.push(PlaySession {
+                start: started_at,
+                end: ended_at.max(started_at),
+            });
+            if game.history.len() > MAX_HISTORY {
+                let extra = game.history.len() - MAX_HISTORY;
+                game.history.drain(..extra);
+            }
             game.last_played = Some(started_at);
             game.playtime_secs = game.playtime_secs.saturating_add(ended_at.saturating_sub(started_at));
         })
@@ -200,6 +257,7 @@ mod tests {
 
         let reopened = Library::open(&path).unwrap();
         let stored = reopened.get(&game.id).unwrap();
+        assert_eq!(stored.history, [PlaySession { start: 100, end: 160 }]);
         assert!(stored.favorite);
         assert_eq!(stored.playtime_secs, 60);
         assert_eq!(stored.sessions, 1);
@@ -207,6 +265,58 @@ mod tests {
         let mut lib = reopened;
         lib.remove(&game.id).unwrap();
         assert!(Library::open(&path).unwrap().games().is_empty());
+    }
+
+    #[test]
+    fn tags_profiles_and_flags() {
+        use crate::model::{EnvVar, LaunchProfile};
+        let (dir, new) = fixture();
+        let mut lib = Library::open(dir.path().join("library.json")).unwrap();
+        let game = lib.add(new).unwrap();
+        let dx11 = LaunchProfile {
+            id: "dx11".into(),
+            name: " DX11 ".into(),
+            launch_args: "-dx11".into(),
+            executable: None,
+            env: vec![EnvVar {
+                key: "MODE".into(),
+                value: "11".into(),
+            }],
+        };
+        let updated = lib
+            .patch(
+                &game.id,
+                GamePatch {
+                    tags: Some(vec!["Ported".into(), " ported ".into(), "".into(), "Co-op".into()]),
+                    hidden: Some(true),
+                    completed: Some(true),
+                    profiles: Some(vec![dx11]),
+                    active_profile: Some(Some("dx11".into())),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(updated.tags, ["Ported", "Co-op"]);
+        assert!(updated.hidden && updated.completed);
+        assert_eq!(updated.profiles[0].name, "DX11");
+        assert_eq!(updated.active_profile.as_deref(), Some("dx11"));
+
+        let started = updated.with_profile(updated.active_profile.as_deref());
+        assert_eq!(started.launch_args, "-dx11");
+        assert_eq!(started.env[0].value, "11");
+        assert_eq!(updated.with_profile(None).launch_args, "-windowed");
+
+        // Removing the profile falls back to the game's own settings.
+        let cleared = lib
+            .patch(
+                &game.id,
+                GamePatch {
+                    profiles: Some(Vec::new()),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(cleared.active_profile, None);
     }
 
     #[test]

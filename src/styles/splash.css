@@ -1,0 +1,248 @@
+/*
+ * Launch animation, about 1.85 s:
+ *   0.06 s  the star rises in, the glow and wordmark fade up
+ *   0.50 s  a streak of light shoots through the star
+ *   0.72 s  impact: a flash, and the crack draws across the star
+ *   1.00 s  the two halves part and fade
+ *   1.42 s  the screen fades away to the app
+ * Nothing moves until the window is on screen ([data-play]).
+ */
+
+.splash {
+  position: fixed;
+  z-index: 1000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--sx-bg-frame);
+  pointer-events: none;
+}
+
+.splash[data-play] {
+  animation: splash-out 420ms var(--sx-ease-out) 1420ms forwards;
+}
+
+@keyframes splash-out {
+  to {
+    opacity: 0;
+  }
+}
+
+.splash-stage {
+  position: relative;
+  display: grid;
+  justify-items: center;
+}
+
+.splash-glow {
+  position: absolute;
+  top: 40px;
+  width: 160px;
+  height: 160px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(109, 184, 255, 0.45), rgba(187, 102, 255, 0.18) 50%, transparent 72%);
+  filter: blur(14px);
+  opacity: 0;
+}
+
+[data-play] .splash-glow {
+  animation: splash-glow 1450ms ease-out forwards;
+}
+
+@keyframes splash-glow {
+  0% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  30% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  52% {
+    opacity: 1;
+    transform: scale(1.4);
+  }
+  75% {
+    opacity: 0.5;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+.splash-art {
+  position: relative;
+  overflow: visible;
+}
+
+.splash-star,
+.splash-half,
+.splash-flash {
+  transform-box: view-box;
+  transform-origin: 12px 12px;
+}
+
+.splash-star {
+  opacity: 0;
+}
+
+[data-play] .splash-star {
+  animation: splash-star-in 520ms var(--sx-ease-spring) 60ms forwards;
+}
+
+@keyframes splash-star-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* The streak of light: a short dash travelling along a long diagonal line. */
+.splash-beam {
+  fill: none;
+  stroke: var(--sx-text-primary);
+  stroke-width: 0.5;
+  stroke-linecap: round;
+  stroke-dasharray: 18 100;
+  stroke-dashoffset: 18;
+  opacity: 0;
+  filter: drop-shadow(0 0 1.5px var(--sx-wash-blue));
+}
+
+[data-play] .splash-beam {
+  animation: splash-beam 360ms cubic-bezier(0.5, 0, 0.2, 1) 500ms forwards;
+}
+
+@keyframes splash-beam {
+  0% {
+    opacity: 1;
+    stroke-dashoffset: 18;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    stroke-dashoffset: -100;
+  }
+}
+
+.splash-flash {
+  opacity: 0;
+}
+
+[data-play] .splash-flash {
+  animation: splash-flash 520ms ease-out 700ms;
+}
+
+@keyframes splash-flash {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+/* The crack: a dark fracture with light seeping out of it. */
+.splash-crack {
+  fill: none;
+  stroke: var(--sx-bg-frame);
+  stroke-width: 0.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  filter: drop-shadow(0 0 0.6px var(--sx-wash-blue)) drop-shadow(0 0 2px var(--sx-wash-blue));
+}
+
+[data-play] .splash-crack {
+  animation:
+    splash-crack 260ms ease-out 720ms forwards,
+    splash-fade 360ms ease-in 1000ms forwards;
+}
+
+@keyframes splash-crack {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes splash-fade {
+  to {
+    opacity: 0;
+  }
+}
+
+[data-play] .splash-half-lower {
+  animation: splash-split-lower 620ms cubic-bezier(0.2, 0.7, 0.2, 1) 1000ms forwards;
+}
+
+[data-play] .splash-half-upper {
+  animation: splash-split-upper 620ms cubic-bezier(0.2, 0.7, 0.2, 1) 1000ms forwards;
+}
+
+@keyframes splash-split-lower {
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translate(-2.6px, 2.6px) rotate(-7deg);
+  }
+}
+
+@keyframes splash-split-upper {
+  60% {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translate(2.6px, -2.6px) rotate(7deg);
+  }
+}
+
+.splash-word {
+  margin-top: -28px;
+  color: var(--sx-text-secondary);
+  font-size: var(--sx-text-lg);
+  font-weight: var(--sx-weight-medium);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  opacity: 0;
+}
+
+[data-play] .splash-word {
+  animation: splash-word 1400ms var(--sx-ease-out) 120ms forwards;
+}
+
+@keyframes splash-word {
+  0% {
+    opacity: 0;
+    transform: translateY(6px);
+    letter-spacing: 0.5em;
+  }
+  25% {
+    opacity: 0.9;
+    transform: translateY(0);
+    letter-spacing: 0.32em;
+  }
+  70% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+  }
+}

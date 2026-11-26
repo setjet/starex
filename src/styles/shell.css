@@ -24,8 +24,8 @@
 }
 
 .titlebar-mark {
-  color: var(--sx-text-primary);
-  filter: drop-shadow(0 0 6px rgba(109, 184, 255, 0.45));
+  flex: 0 0 auto;
+  pointer-events: none;
 }
 
 .titlebar-name {
@@ -132,7 +132,54 @@
   box-shadow:
     0 0 0 1px var(--sx-border),
     0 1px 0 rgba(255, 255, 255, 0.03) inset;
-  scrollbar-gutter: stable;
+  scrollbar-width: none;
+}
+
+.content::-webkit-scrollbar {
+  display: none;
+}
+
+.content-frame {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Floats over the page (banner included) instead of taking a strip of its own. */
+.overlay-scrollbar {
+  position: absolute;
+  z-index: 5;
+  top: 0;
+  right: var(--sx-space-2);
+  bottom: var(--sx-space-2);
+  width: 12px;
+  opacity: 0;
+  transition: opacity 240ms ease;
+}
+
+.overlay-scrollbar[data-visible],
+.overlay-scrollbar[data-dragging],
+.content-frame:hover .overlay-scrollbar[data-scrollable] {
+  opacity: 1;
+}
+
+.overlay-scrollbar-thumb {
+  position: absolute;
+  top: 0;
+  right: 3px;
+  width: 6px;
+  border-radius: var(--sx-radius-pill);
+  background: rgba(255, 255, 255, 0.16);
+  transition:
+    background-color var(--sx-duration-fast) ease,
+    width var(--sx-duration-fast) ease;
+}
+
+.overlay-scrollbar:hover .overlay-scrollbar-thumb,
+.overlay-scrollbar[data-dragging] .overlay-scrollbar-thumb {
+  width: 8px;
+  background: rgba(255, 255, 255, 0.28);
 }
 
 /* Sidebar ------------------------------------------------------------------------------------- */
@@ -490,7 +537,7 @@
   border-radius: var(--sx-radius-lg);
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.06) inset,
-    0 10px 30px rgba(0, 0, 0, 0.25);
+    0 2px 8px rgba(0, 0, 0, 0.16);
   transition:
     box-shadow var(--sx-duration-slow) var(--sx-ease-out),
     transform var(--sx-duration-slow) var(--sx-ease-out);
@@ -540,7 +587,7 @@
   border-radius: var(--sx-radius-pill);
   background: var(--sx-play);
   color: var(--sx-play-text);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
   opacity: 0;
   transform: translateY(6px) scale(0.9);
   transition:
@@ -560,7 +607,7 @@
     transform: translateY(-4px);
     box-shadow:
       0 0 0 1px rgba(255, 255, 255, 0.12) inset,
-      0 18px 40px rgba(0, 0, 0, 0.45);
+      0 6px 16px rgba(0, 0, 0, 0.22);
   }
   .library-card:hover .library-card-play,
   .library-card-play:focus-visible {
@@ -606,7 +653,7 @@
 .library-card[data-running] .game-cover {
   box-shadow:
     0 0 0 2px var(--sx-success) inset,
-    0 10px 30px rgba(0, 0, 0, 0.25);
+    0 2px 8px rgba(0, 0, 0, 0.16);
 }
 
 /* Empty library ------------------------------------------------------------------------------- */
@@ -633,7 +680,7 @@
   background: linear-gradient(180deg, #262626, #121212);
   box-shadow:
     0 0 0 1px rgba(255, 255, 255, 0.08) inset,
-    0 20px 50px rgba(0, 0, 0, 0.5);
+    0 4px 14px rgba(0, 0, 0, 0.22);
 }
 
 .empty-mark svg,
@@ -714,4 +761,195 @@
   from {
     opacity: 0;
   }
+}
+
+/* First run ----------------------------------------------------------------------------------- */
+
+.onboard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: var(--sx-space-12) var(--sx-space-8);
+  text-align: center;
+}
+
+.onboard-fan {
+  position: relative;
+  width: 200px;
+  height: 148px;
+  margin-bottom: var(--sx-space-8);
+}
+
+.onboard-cover {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  display: grid;
+  place-items: center;
+  width: 92px;
+  aspect-ratio: 2 / 3;
+  margin-left: -46px;
+  border-radius: var(--sx-radius-lg);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.08) inset,
+    0 4px 12px rgba(0, 0, 0, 0.18);
+  transform-origin: 50% 100%;
+  animation: onboard-fan 700ms var(--sx-ease-panel) 80ms both;
+}
+
+.onboard-cover-left {
+  --fan: translateX(-54px) rotate(-12deg);
+  opacity: 0.7;
+}
+
+.onboard-cover-right {
+  --fan: translateX(54px) rotate(12deg);
+  opacity: 0.7;
+}
+
+.onboard-cover-center {
+  --fan: translateY(-6px);
+  color: var(--sx-text-primary);
+}
+
+.onboard-cover-center svg {
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.3));
+}
+
+.onboard-cover {
+  transform: var(--fan);
+}
+
+@keyframes onboard-fan {
+  from {
+    opacity: 0;
+    transform: translateY(12px) rotate(0deg);
+  }
+}
+
+.onboard-title {
+  font-size: var(--sx-text-display);
+  font-weight: var(--sx-weight-semibold);
+  letter-spacing: var(--sx-tracking-display);
+  line-height: 1.15;
+  animation: page-enter var(--sx-duration-hero) var(--sx-ease-panel) 160ms both;
+}
+
+.onboard-text {
+  max-width: 380px;
+  margin: var(--sx-space-3) 0 var(--sx-space-8);
+  color: var(--sx-text-muted);
+  font-size: var(--sx-text-lg);
+  line-height: 23px;
+  animation: page-enter var(--sx-duration-hero) var(--sx-ease-panel) 220ms both;
+}
+
+.onboard .btn {
+  animation: page-enter var(--sx-duration-hero) var(--sx-ease-panel) 280ms both;
+}
+
+.onboard-hint {
+  display: flex;
+  align-items: center;
+  gap: var(--sx-space-1);
+  margin-top: var(--sx-space-4);
+  color: var(--sx-text-dim);
+  font-size: var(--sx-text-sm);
+  animation: page-enter var(--sx-duration-hero) var(--sx-ease-panel) 320ms both;
+}
+
+.onboard-hint kbd {
+  min-width: 22px;
+  border-radius: var(--sx-radius-xs);
+  background: var(--sx-bg-surface);
+  padding: 1px var(--sx-space-1-5);
+  color: var(--sx-text-muted);
+  font-size: var(--sx-text-xs);
+  font-weight: var(--sx-weight-medium);
+  box-shadow: 0 0 0 1px var(--sx-border-strong) inset;
+}
+
+.onboard-hint span {
+  margin-left: var(--sx-space-1);
+}
+
+.sidebar-item[data-hidden] .sidebar-item-name {
+  opacity: 0.55;
+}
+
+/* Backdrop (Settings > Appearance) ---------------------------------------------------------------- */
+
+.titlebar,
+.shell {
+  position: relative;
+  z-index: 1;
+}
+
+.backdrop {
+  position: fixed;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  opacity: var(--backdrop-strength, 0.6);
+  pointer-events: none;
+  transition: opacity var(--sx-duration-slow) var(--sx-ease-out);
+}
+
+.backdrop-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.backdrop-blur {
+  inset: -60px;
+  width: calc(100% + 120px);
+  height: calc(100% + 120px);
+  filter: blur(48px) saturate(1.3);
+}
+
+.backdrop-aurora {
+  position: absolute;
+  inset: -25%;
+  background:
+    radial-gradient(40% 35% at 25% 30%, rgba(109, 184, 255, 0.55), transparent 70%),
+    radial-gradient(35% 40% at 75% 25%, rgba(187, 102, 255, 0.45), transparent 70%),
+    radial-gradient(45% 35% at 60% 80%, rgba(111, 255, 196, 0.3), transparent 70%),
+    radial-gradient(30% 30% at 20% 85%, rgba(255, 102, 192, 0.3), transparent 70%);
+  filter: blur(30px);
+  animation: aurora-drift 36s ease-in-out infinite alternate;
+}
+
+@keyframes aurora-drift {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+  }
+  50% {
+    transform: translate3d(4%, -3%, 0) rotate(8deg) scale(1.08);
+  }
+  100% {
+    transform: translate3d(-3%, 4%, 0) rotate(-6deg) scale(1.02);
+  }
+}
+
+.backdrop-dim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(13, 13, 13, 0.25) 0%, rgba(13, 13, 13, 0.7) 100%);
+}
+
+/* With a backdrop the page card turns to frosted glass so the backdrop shows through. */
+.app[data-backdrop] .content {
+  background: color-mix(in srgb, var(--sx-bg-canvas) 76%, transparent);
+  backdrop-filter: blur(28px) saturate(1.2);
+}
+
+.app[data-backdrop] .hero-scrim {
+  background:
+    linear-gradient(180deg, rgba(26, 26, 26, 0) 40%, rgba(26, 26, 26, 0.45) 100%),
+    var(--sx-scrim-side);
 }

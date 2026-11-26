@@ -55,6 +55,26 @@ pub fn import(paths: &Paths, game_id: &str, kind: ArtworkKind, source: &Path) ->
     Ok(dest)
 }
 
+/// Copies the user's backdrop image into the artwork folder (the only folder the window may load
+/// images from) and returns its new path. Earlier backdrops are deleted.
+pub fn import_backdrop(paths: &Paths, source: &Path) -> Result<PathBuf, String> {
+    let ext = image_ext(source).ok_or("Choose a PNG, JPEG, WebP, GIF or AVIF image.")?;
+    let meta = fs::metadata(source).map_err(|e| format!("Could not read {}: {e}", source.display()))?;
+    if meta.len() > MAX_BYTES {
+        return Err("That image is larger than 40 MB.".into());
+    }
+    let dir = paths.artwork.join("_backdrop");
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).map_err(|e| format!("Could not create {}: {e}", dir.display()))?;
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis())
+        .unwrap_or_default();
+    let dest = dir.join(format!("backdrop-{stamp}.{ext}"));
+    fs::copy(source, &dest).map_err(|e| format!("Could not copy the image: {e}"))?;
+    Ok(dest)
+}
+
 pub fn remove(paths: &Paths, game_id: &str, kind: ArtworkKind) {
     clear(&paths.artwork_dir(game_id), kind);
 }
@@ -104,7 +124,7 @@ async fn get<T: for<'de> Deserialize<'de>>(client: &reqwest::Client, key: &str, 
         .await
         .map_err(|e| format!("SteamGridDB could not be reached: {e}"))?;
     match response.status().as_u16() {
-        401 | 403 => return Err("SteamGridDB rejected the API key. Check it in Settings > Artwork.".into()),
+        401 | 403 => return Err("SteamGridDB rejected the API key. Check it in Settings > Integrations.".into()),
         404 => return Err("SteamGridDB has no artwork for this game.".into()),
         _ => {}
     }
@@ -156,7 +176,7 @@ pub async fn fetch_steamgriddb(
     overwrite: bool,
 ) -> Result<Artwork, String> {
     if key.trim().is_empty() {
-        return Err("Add a SteamGridDB API key in Settings > Artwork first.".into());
+        return Err("Add a SteamGridDB API key in Settings > Integrations first.".into());
     }
     let term: String = url_encode(name.trim());
     let hits: Vec<SearchHit> = get(client, key, &format!("{API}/search/autocomplete/{term}")).await?;

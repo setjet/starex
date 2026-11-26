@@ -5,7 +5,7 @@ import { api, fileUrl } from "../lib/api";
 import { count, timeAgo } from "../lib/format";
 import { generatedArt } from "../lib/art";
 import { fetchArtwork, patchGame, type PropertiesTab, setArtwork, setDialog, store } from "../lib/store";
-import type { ArtworkKind, EnvVar, Game, SaveLocation } from "../lib/types";
+import type { ArtworkKind, EnvVar, Game, LaunchProfile, SaveLocation } from "../lib/types";
 import { FadeImage } from "./GameArt";
 import { Button, IconButton } from "./ui/Button";
 import { Dialog } from "./ui/Dialog";
@@ -24,6 +24,10 @@ export function PropertiesDialog(props: { game: Game; tab?: Tab }) {
   const [tab, setTab] = createSignal<Tab>(props.tab ?? "general");
   const [name, setName] = createSignal(props.game.name);
   const [favorite, setFavorite] = createSignal(props.game.favorite);
+  const [completed, setCompleted] = createSignal(props.game.completed);
+  const [hidden, setHidden] = createSignal(props.game.hidden);
+  const [showOnDiscord, setShowOnDiscord] = createSignal(props.game.showOnDiscord);
+  const [profiles, setProfiles] = createSignal<LaunchProfile[]>(props.game.profiles.map((p) => ({ ...p, env: [...p.env] })));
   const [executable, setExecutable] = createSignal(props.game.executable);
   const [args, setArgs] = createSignal(props.game.launchArgs);
   const [workingDir, setWorkingDir] = createSignal<string | null>(props.game.workingDir);
@@ -45,6 +49,10 @@ export function PropertiesDialog(props: { game: Game; tab?: Tab }) {
     const saved = await patchGame(props.game.id, {
       name: name(),
       favorite: favorite(),
+      completed: completed(),
+      hidden: hidden(),
+      showOnDiscord: showOnDiscord(),
+      profiles: profiles(),
       executable: executable(),
       launchArgs: args(),
       workingDir: workingDir(),
@@ -60,7 +68,7 @@ export function PropertiesDialog(props: { game: Game; tab?: Tab }) {
     const picked = await open({
       title: "Choose the game's executable",
       defaultPath: props.game.installDir,
-      filters: store.hostOs === "windows" ? [{ name: "Programs", extensions: ["exe"] }] : undefined,
+      filters: store.hostOs === "windows" ? [{ name: "Programs", extensions: ["exe", "bat", "cmd"] }] : undefined,
     });
     if (typeof picked === "string") setExecutable(picked);
   };
@@ -145,6 +153,25 @@ export function PropertiesDialog(props: { game: Game; tab?: Tab }) {
                 checked={favorite()}
                 onChange={setFavorite}
               />
+              <Switch
+                label="Finished"
+                description="You have completed the game."
+                checked={completed()}
+                onChange={setCompleted}
+              />
+              <Switch
+                label="Hide from library"
+                description="It appears only when Show hidden games is on, in the sidebar's sort menu."
+                checked={hidden()}
+                onChange={setHidden}
+              />
+              <Switch
+                label="Show on Discord"
+                description="Your Discord profile shows this game while you play it."
+                checked={showOnDiscord()}
+                disabled={!store.settings.discordPresence}
+                onChange={setShowOnDiscord}
+              />
             </div>
           </Match>
 
@@ -219,6 +246,92 @@ export function PropertiesDialog(props: { game: Game; tab?: Tab }) {
                 </div>
               </Show>
             </div>
+            <div class="field">
+              <div class="field-label-row">
+                <span class="field-label">Launch profiles</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  icon={<Plus />}
+                  onClick={() =>
+                    setProfiles([
+                      ...profiles(),
+                      { id: newProfileId(), name: "", launchArgs: "", executable: null, env: [] },
+                    ])
+                  }
+                >
+                  Add profile
+                </Button>
+              </div>
+              <Show
+                when={profiles().length > 0}
+                fallback={
+                  <span class="field-description">
+                    Save other ways to start the game, like DX11 and DX12 or with mods, and pick one next to Play.
+                  </span>
+                }
+              >
+                <div class="profile-list">
+                  <For each={profiles()}>
+                    {(profile, i) => {
+                      const update = (patch: Partial<LaunchProfile>) =>
+                        setProfiles(profiles().map((p, j) => (j === i() ? { ...p, ...patch } : p)));
+                      return (
+                        <div class="profile-card">
+                          <div class="input-row">
+                            <input
+                              class="input profile-name"
+                              placeholder="Name, e.g. DX12"
+                              value={profile.name}
+                              onInput={(e) => update({ name: e.currentTarget.value })}
+                            />
+                            <input
+                              class="input mono"
+                              placeholder="Launch options"
+                              value={profile.launchArgs}
+                              spellcheck={false}
+                              onInput={(e) => update({ launchArgs: e.currentTarget.value })}
+                            />
+                            <IconButton
+                              label="Remove profile"
+                              variant="secondary"
+                              onClick={() => setProfiles(profiles().filter((_, j) => j !== i()))}
+                            >
+                              <X />
+                            </IconButton>
+                          </div>
+                          <div class="profile-exe">
+                            <span class="field-description mono">
+                              {profile.executable ?? "Uses the game's executable"}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={async () => {
+                                const picked = await open({
+                                  title: "Choose the executable for this profile",
+                                  defaultPath: props.game.installDir,
+                                  filters:
+                                    store.hostOs === "windows" ? [{ name: "Programs", extensions: ["exe", "bat", "cmd"] }] : undefined,
+                                });
+                                if (typeof picked === "string") update({ executable: picked });
+                              }}
+                            >
+                              Change…
+                            </Button>
+                            <Show when={profile.executable}>
+                              <Button variant="ghost" size="sm" onClick={() => update({ executable: null })}>
+                                Reset
+                              </Button>
+                            </Show>
+                          </div>
+                        </div>
+                      );
+                    }}
+                  </For>
+                </div>
+              </Show>
+            </div>
           </Match>
 
           <Match when={tab() === "saves"}>
@@ -268,6 +381,11 @@ export function PropertiesDialog(props: { game: Game; tab?: Tab }) {
                           <span class="candidate-path" title={location.path}>
                             {location.path}
                           </span>
+                          <Show when={location.fromDatabase}>
+                            <span class="badge" data-tone="info" title="From the Ludusavi save database">
+                              Database
+                            </span>
+                          </Show>
                           <span class="candidate-size">
                             {count(location.files, "file")}
                             <Show when={location.modified}>{(at) => <> · {timeAgo(at())}</>}</Show>
@@ -324,7 +442,7 @@ export function PropertiesDialog(props: { game: Game; tab?: Tab }) {
               <div>
                 <span class="art-slot-label">SteamGridDB</span>
                 <span class="art-slot-hint">
-                  <Show when={store.settings.steamgriddbKey} fallback="Add an API key in Settings > Artwork to find artwork online.">
+                  <Show when={store.settings.steamgriddbKey} fallback="Add an API key in Settings > Integrations to find artwork online.">
                     Replaces all four images with the best match for "{live().name}".
                   </Show>
                 </span>
@@ -338,4 +456,8 @@ export function PropertiesDialog(props: { game: Game; tab?: Tab }) {
       </form>
     </Dialog>
   );
+}
+
+function newProfileId(): string {
+  return Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, "0")).join("");
 }

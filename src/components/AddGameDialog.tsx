@@ -70,7 +70,7 @@ export function AddGameDialog(props: { initialPath?: string }) {
   const scan = async (path: string) => {
     let folder = path;
     let preferred: string | null = null;
-    if (/\.exe$/i.test(path)) {
+    if (/\.(exe|bat|cmd)$/i.test(path)) {
       preferred = path;
       folder = path.replace(/[\\/][^\\/]+$/, "");
     }
@@ -101,7 +101,7 @@ export function AddGameDialog(props: { initialPath?: string }) {
     const picked = await open({
       title: "Choose the game's executable",
       defaultPath: root,
-      filters: store.hostOs === "windows" ? [{ name: "Programs", extensions: ["exe"] }] : undefined,
+      filters: store.hostOs === "windows" ? [{ name: "Programs", extensions: ["exe", "bat", "cmd"] }] : undefined,
     });
     if (typeof picked === "string") setExe(picked);
   };
@@ -347,7 +347,9 @@ export function AddGameDialog(props: { initialPath?: string }) {
                               <Show when={c.host === "compat"}>
                                 <span class="badge" data-tone="info">Wine</span>
                               </Show>
-                              <span class="badge">{archLabel[c.arch ?? "unknown"]}</span>
+                              <span class="badge">
+                                {c.format === "batch" || c.format === "script" ? "Launch script" : archLabel[c.arch ?? "unknown"]}
+                              </span>
                             </Show>
                             <span class="candidate-size">{bytes(c.size)}</span>
                           </span>

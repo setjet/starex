@@ -1,26 +1,37 @@
 // Every icon the interface uses, imported one by one so only these ship and load.
 // Add new icons here; components import from this file, never from "lucide-solid".
 
+export { default as AppWindow } from "lucide-solid/icons/app-window";
 export { default as ArrowDownToLine } from "lucide-solid/icons/arrow-down-to-line";
 export { default as ArrowDownUp } from "lucide-solid/icons/arrow-down-up";
 export { default as ArrowUpRight } from "lucide-solid/icons/arrow-up-right";
+export { default as Blocks } from "lucide-solid/icons/blocks";
 export { default as Bug } from "lucide-solid/icons/bug";
+export { default as Check } from "lucide-solid/icons/check";
+export { default as ChevronDown } from "lucide-solid/icons/chevron-down";
 export { default as CircleCheck } from "lucide-solid/icons/circle-check";
 export { default as CircleX } from "lucide-solid/icons/circle-x";
-export { default as Ellipsis } from "lucide-solid/icons/ellipsis";
 export { default as Eye } from "lucide-solid/icons/eye";
 export { default as EyeOff } from "lucide-solid/icons/eye-off";
 export { default as Fingerprint } from "lucide-solid/icons/fingerprint-pattern";
+export { default as Flag } from "lucide-solid/icons/flag";
 export { default as FolderInput } from "lucide-solid/icons/folder-input";
 export { default as FolderOpen } from "lucide-solid/icons/folder-open";
+export { default as Gamepad2 } from "lucide-solid/icons/gamepad-2";
+export { default as Globe } from "lucide-solid/icons/globe";
+export { default as HardDrive } from "lucide-solid/icons/hard-drive";
+export { default as Heart } from "lucide-solid/icons/heart";
 export { default as Image } from "lucide-solid/icons/image";
 export { default as Info } from "lucide-solid/icons/info";
 export { default as LayoutGrid } from "lucide-solid/icons/layout-grid";
-export { default as Library } from "lucide-solid/icons/library";
+export { default as Link } from "lucide-solid/icons/link";
+export { default as Monitor } from "lucide-solid/icons/monitor";
+export { default as Palette } from "lucide-solid/icons/palette";
 export { default as Play } from "lucide-solid/icons/play";
 export { default as Plus } from "lucide-solid/icons/plus";
 export { default as RefreshCw } from "lucide-solid/icons/refresh-cw";
 export { default as ScanSearch } from "lucide-solid/icons/scan-search";
+export { default as ScrollText } from "lucide-solid/icons/scroll-text";
 export { default as Search } from "lucide-solid/icons/search";
 export { default as Settings } from "lucide-solid/icons/settings";
 export { default as Settings2 } from "lucide-solid/icons/settings-2";
@@ -33,4 +44,5 @@ export { default as Square } from "lucide-solid/icons/square";
 export { default as Star } from "lucide-solid/icons/star";
 export { default as Trash2 } from "lucide-solid/icons/trash";
 export { default as TriangleAlert } from "lucide-solid/icons/triangle-exclamation-point";
+export { default as WifiOff } from "lucide-solid/icons/wifi-off";
 export { default as X } from "lucide-solid/icons/x";

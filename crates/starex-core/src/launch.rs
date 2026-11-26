@@ -69,7 +69,7 @@ pub fn command(game: &Game, wine: Option<&Path>) -> Result<Command> {
     let mut cmd = if needs_wine {
         let wine = wine.ok_or_else(|| {
             Error::invalid(
-                "This is a Windows game, so it needs Wine. Install Wine, or set where it is in Settings > General.",
+                "This is a Windows game, so it needs Wine. Install Wine, or set where it is in Settings > Games.",
             )
         })?;
         let mut cmd = Command::new(wine);
