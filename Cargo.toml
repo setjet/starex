@@ -21,7 +21,7 @@ blake3 = { version = "1.8", features = ["mmap", "rayon"] }
 rayon = "1.11"
 walkdir = "2.5"
 uuid = { version = "1", features = ["v4"] }
-dirs = "6"
+dirs = "7"
 tempfile = "3"
 
 [profile.release]
