@@ -1,0 +1,52 @@
+name: Bug report
+description: Something in Starex does not work as it should.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time. Please search existing issues first.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Add a game from ...
+        2. Click Play
+        3. ...
+  - type: input
+    id: version
+    attributes:
+      label: Starex version
+      description: Settings > About.
+      placeholder: 0.1.0
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Starex writes a log to `%LOCALAPPDATA%\com.setjet.starex\logs` on Windows,
+        `~/Library/Logs/com.setjet.starex` on macOS and `~/.local/share/com.setjet.starex/logs` on Linux.
+        Paste the relevant lines.
+        Remove anything personal first.
+      render: text

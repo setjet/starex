@@ -1,0 +1,155 @@
+/*
+ * Starex design tokens.
+ *
+ * The palette, type scale, radii and motion follow Burn's design language: neutral near-black
+ * surfaces, hairline borders, a light action colour and one blue accent. Every palette colour
+ * comes from this file; component styles only add translucent shades of white and black.
+ */
+:root {
+  color-scheme: dark;
+
+  /* Surfaces, from the window frame up. */
+  --sx-bg-frame: #0d0d0d;
+  --sx-bg-canvas: #1a1a1a;
+  --sx-bg-sunken: #141414;
+  --sx-bg-surface: #212121;
+  --sx-bg-raised: #242424;
+  --sx-bg-control: #212121;
+  --sx-bg-control-hover: #2a2a2a;
+  --sx-bg-control-active: #303030;
+  --sx-bg-overlay: rgba(0, 0, 0, 0.56);
+  --sx-hover: rgba(255, 255, 255, 0.06);
+  --sx-pressed: rgba(255, 255, 255, 0.09);
+
+  /* Frosted controls that sit on top of artwork. */
+  --sx-glass: rgba(20, 20, 20, 0.46);
+  --sx-glass-hover: rgba(40, 40, 40, 0.62);
+  --sx-glass-border: rgba(255, 255, 255, 0.12);
+  --sx-glass-highlight: rgba(255, 255, 255, 0.1);
+
+  --sx-border: rgba(255, 255, 255, 0.05);
+  --sx-border-strong: rgba(255, 255, 255, 0.08);
+  --sx-border-focus: #979797;
+  --sx-ring: rgba(255, 255, 255, 0.1);
+
+  /* Text. */
+  --sx-text-primary: #ffffff;
+  --sx-text-secondary: #dcdcdc;
+  --sx-text-muted: #979797;
+  --sx-text-dim: #6a6a6a;
+  --sx-text-placeholder: #7a7a7a;
+  --sx-text-on-light: #141414;
+
+  /* The single most important action in a context uses the light surface. */
+  --sx-action: #f0f0f0;
+  --sx-action-hover: #ffffff;
+  --sx-action-text: #141414;
+
+  --sx-accent: #007cf7;
+  --sx-accent-hover: #1f8fff;
+  --sx-accent-text: #42a0ff;
+  --sx-accent-soft: rgba(0, 124, 247, 0.16);
+
+  /* Play: Burn's blue action button. */
+  --sx-play: #007cf7;
+  --sx-play-hover: #1f8fff;
+  --sx-play-text: #ffffff;
+
+  --sx-success: #31cf76;
+  --sx-success-soft: rgba(49, 207, 118, 0.12);
+  --sx-warning: #ff9412;
+  --sx-warning-soft: rgba(255, 148, 18, 0.12);
+  --sx-danger: #fd2f3b;
+  --sx-danger-text: #ff6069;
+  --sx-danger-soft: rgba(253, 47, 59, 0.14);
+  --sx-danger-soft-hover: rgba(253, 47, 59, 0.24);
+  --sx-info: #74b9ff;
+  --sx-info-soft: rgba(116, 185, 255, 0.14);
+  --sx-window-close: #c42b1c;
+
+  /* Burn's spectrum wash, used for generated artwork and the logo glow. */
+  --sx-wash-mint: #6fffc4;
+  --sx-wash-blue: #6db8ff;
+  --sx-wash-violet: #bb66ff;
+  --sx-wash-pink: #ff66c0;
+  --sx-wash-amber: #ffb875;
+
+  --sx-shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+  --sx-shadow-raised: 0 12px 32px rgba(0, 0, 0, 0.36);
+  --sx-shadow-dialog: 0 24px 64px rgba(0, 0, 0, 0.56), 0 0 0 1px var(--sx-ring);
+  --sx-shadow-play: 0 1px 0 rgba(255, 255, 255, 0.16) inset, 0 4px 12px rgba(0, 0, 0, 0.25);
+  --sx-scrim-hero: linear-gradient(180deg, rgba(26, 26, 26, 0) 35%, rgba(26, 26, 26, 0.72) 72%, #1a1a1a 100%);
+  --sx-scrim-side: linear-gradient(90deg, rgba(13, 13, 13, 0.72) 0%, rgba(13, 13, 13, 0.32) 42%, rgba(13, 13, 13, 0) 70%);
+  --sx-scrim-cover: linear-gradient(180deg, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, 0.78) 100%);
+
+  /* Type. */
+  --sx-font-sans: "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  --sx-font-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+  --sx-text-xs: 12px;
+  --sx-text-sm: 13px;
+  --sx-text-md: 14px;
+  --sx-text-lg: 15px;
+  --sx-text-xl: 16px;
+  --sx-text-2xl: 18px;
+  --sx-text-3xl: 24px;
+  --sx-text-display: 32px;
+  --sx-text-hero: clamp(36px, 4.4vw, 56px);
+  --sx-weight-regular: 400;
+  --sx-weight-medium: 500;
+  --sx-weight-semibold: 600;
+  --sx-weight-bold: 700;
+  --sx-tracking-tight: -0.01em;
+  --sx-tracking-display: -0.025em;
+  --sx-tracking-caps: 0.06em;
+
+  /* Space and size. */
+  --sx-space-0-5: 2px;
+  --sx-space-1: 4px;
+  --sx-space-1-5: 6px;
+  --sx-space-2: 8px;
+  --sx-space-2-5: 10px;
+  --sx-space-3: 12px;
+  --sx-space-4: 16px;
+  --sx-space-5: 20px;
+  --sx-space-6: 24px;
+  --sx-space-8: 32px;
+  --sx-space-10: 40px;
+  --sx-space-12: 48px;
+
+  --sx-control-xs: 24px;
+  --sx-control-sm: 28px;
+  --sx-control-md: 32px;
+  --sx-control-lg: 36px;
+  --sx-control-xl: 40px;
+  --sx-control-play: 48px;
+
+  --sx-radius-xs: 4px;
+  --sx-radius-sm: 6px;
+  --sx-radius-md: 8px;
+  --sx-radius-lg: 12px;
+  --sx-radius-card: 14px;
+  --sx-radius-xl: 20px;
+  --sx-radius-modal: 24px;
+  --sx-radius-pill: 999px;
+
+  --sx-icon-xs: 12px;
+  --sx-icon-sm: 14px;
+  --sx-icon-md: 16px;
+  --sx-icon-lg: 20px;
+
+  --sx-titlebar: 40px;
+  --sx-sidebar: 264px;
+
+  /* Motion: short, eased out, and off when the user asks for less. */
+  --sx-duration-fast: 120ms;
+  --sx-duration-normal: 160ms;
+  --sx-duration-slow: 240ms;
+  --sx-duration-hero: 520ms;
+  --sx-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --sx-ease-spring: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --sx-ease-panel: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --sx-layer-menu: 40;
+  --sx-layer-dialog: 100;
+  --sx-layer-toast: 120;
+}

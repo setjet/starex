@@ -1,0 +1,64 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Starex",
+  "identifier": "com.setjet.starex",
+  "build": {
+    "beforeDevCommand": "bun run dev:web",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "bun run build:web",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [
+      {
+        "label": "main",
+        "title": "Starex",
+        "width": 1320,
+        "height": 820,
+        "minWidth": 1040,
+        "minHeight": 660,
+        "center": true,
+        "decorations": false,
+        "shadow": true,
+        "resizable": true,
+        "visible": false,
+        "backgroundColor": "#0d0d0d"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src ipc: http://ipc.localhost",
+      "assetProtocol": {
+        "enable": true,
+        "scope": []
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "createUpdaterArtifacts": true,
+    "publisher": "Starex contributors",
+    "copyright": "Copyright (c) Starex contributors. MIT License.",
+    "category": "Game",
+    "shortDescription": "A clean, fast launcher for the games on your drive.",
+    "longDescription": "Starex launches the games you already have on disk, checks their files and keeps track of your play time.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDIzRjA2QkQ3REVGNUMzOUEKUldTYXcvWGUxMnZ3STBjM2F6TnBUZStnNnZYWEFnN0NMNmRHd1JNb1ZoZWIxek1MSEI2YWtiRDcK",
+      "endpoints": [
+        "https://github.com/setjet/starex/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+[package]
+name = "starex"
+description = "A clean, fast launcher for the games on your drive."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+homepage.workspace = true
+default-run = "starex"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+starex-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+log.workspace = true
+dirs.workspace = true
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-process = "2"
+tauri-plugin-log = "2"
+tauri-plugin-window-state = "2"
+sysinfo = { version = "0.37", default-features = false, features = ["system"] }
+# HTTPS goes through the operating system (schannel on Windows): no bundled crypto library.
+reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls", "system-proxy"] }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2"
+tauri-plugin-updater = { version = "2", default-features = false, features = ["native-tls", "system-proxy", "zip"] }

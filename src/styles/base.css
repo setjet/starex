@@ -1,0 +1,186 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+html {
+  font-family: var(--sx-font-sans);
+  font-size: var(--sx-text-md);
+  line-height: 1.45;
+  color: var(--sx-text-primary);
+  background: var(--sx-bg-frame);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01";
+}
+
+body {
+  overflow: hidden;
+  background: var(--sx-bg-frame);
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+
+input,
+textarea,
+.mono,
+.selectable {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: default;
+  background: none;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+h1,
+h2,
+h3,
+p,
+dl,
+dd,
+ul {
+  margin: 0;
+  padding: 0;
+}
+
+ul {
+  list-style: none;
+}
+
+img {
+  display: block;
+}
+
+svg {
+  flex: 0 0 auto;
+}
+
+kbd {
+  font-family: var(--sx-font-sans);
+}
+
+::selection {
+  background: var(--sx-accent-soft);
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--sx-border-focus);
+  outline-offset: 2px;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: var(--sx-radius-pill);
+  background: rgba(255, 255, 255, 0.1) padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18) padding-box;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.mono {
+  font-family: var(--sx-font-mono);
+  font-size: 0.93em;
+  letter-spacing: 0;
+}
+
+.muted {
+  color: var(--sx-text-muted);
+}
+
+.fade-image {
+  opacity: 0;
+  transition: opacity var(--sx-duration-slow) var(--sx-ease-out);
+}
+
+.fade-image[data-ready] {
+  opacity: 1;
+}
+
+.page-enter {
+  animation: page-enter var(--sx-duration-slow) var(--sx-ease-panel) both;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+    filter: blur(2px);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.spinner {
+  animation: spin 0.8s linear infinite;
+}
+
+/* Reduced motion: from the system, or from Starex's own setting. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+  .spinner {
+    animation: spin 0.8s linear infinite !important;
+  }
+}
+
+:root[data-reduce-motion] *,
+:root[data-reduce-motion] *::before,
+:root[data-reduce-motion] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+}
+
+:root[data-reduce-motion] .spinner {
+  animation: spin 0.8s linear infinite !important;
+}

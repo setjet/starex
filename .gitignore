@@ -1,0 +1,26 @@
+# Build output
+/target/
+/dist/
+/src-tauri/gen/
+
+# Dependencies
+node_modules/
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Local files that must never be committed
+*.key
+*.key.pub
+.env
+.env.*
+*.log
+
+# Local tooling
+.claude/
