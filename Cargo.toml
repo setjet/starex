@@ -9,7 +9,6 @@ rust-version = "1.90"
 license = "MIT"
 authors = ["Starex contributors"]
 repository = "https://github.com/setjet/starex"
-homepage = "https://github.com/setjet/starex"
 
 [workspace.dependencies]
 starex-core = { path = "crates/starex-core" }

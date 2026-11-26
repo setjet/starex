@@ -172,7 +172,7 @@ pub fn imports(path: &Path) -> Result<Vec<String>, PeProblem> {
         return Err(PeProblem::NotExecutable);
     }
     let to_offset = |rva: u32| -> Option<u64> {
-        table.chunks_exact(40).find_map(|s| {
+        table.as_chunks::<40>().0.iter().find_map(|s| {
             let (virtual_size, address) = (le32(s, 8), le32(s, 12));
             let (raw_size, raw) = (le32(s, 16), le32(s, 20));
             let size = virtual_size.max(raw_size);

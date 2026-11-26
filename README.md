@@ -26,13 +26,11 @@
   <img src="docs/images/game.png" alt="Illustration of a game featured on Starex" width="900">
 </p>
 
----
 
 ## What it does
 
 Point Starex at a folder of game files and it gives the game a home: banner art, a Play button
-and your play time. New to Starex? [How Starex works](docs/HOW_IT_WORKS.md) explains it in plain
-words.
+and your play time. New to Starex? Read below to see how it works:
 
 - **Any game folder.** No store or account. Starex finds the right program to start.
 - **Fast file checks.** Catches missing or changed files in seconds, with full BLAKE3 hashing
@@ -117,14 +115,12 @@ bun run lint
 | App | [`src-tauri`](src-tauri) | [Tauri 2](https://tauri.app) shell: commands, play sessions, save backups, artwork, updates. |
 | Interface | [`src`](src) | [SolidJS](https://www.solidjs.com) and plain CSS on one set of design tokens. |
 
----
 
 ## Contributing
 
 Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains the setup, the
 commit style and how releases happen.
 
----
 
 ## Disclaimer
 
@@ -136,7 +132,6 @@ Starex only launches software that is already on your computer. It does not prov
 unlock games, and it does not bypass copy protection or DRM. You are responsible for making sure
 you have the right to use any game you add to it.
 
----
 
 ## License
 

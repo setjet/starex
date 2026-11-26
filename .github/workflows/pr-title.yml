@@ -12,6 +12,9 @@ permissions:
 
 jobs:
   conventional:
+    # Dependabot writes its own titles ("build(deps): Bump …") and its updates are not
+    # features or fixes, so they do not need checking.
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: amannn/action-semantic-pull-request@v5
