@@ -26,7 +26,7 @@ tauri-plugin-opener = "2"
 tauri-plugin-process = "2"
 tauri-plugin-log = "2"
 tauri-plugin-window-state = "2"
-sysinfo = { version = "0.37", default-features = false, features = ["system"] }
+sysinfo = { version = "0.38", default-features = false, features = ["system"] }
 # HTTPS goes through the operating system (schannel on Windows): no bundled crypto library.
 reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls", "system-proxy"] }
 
