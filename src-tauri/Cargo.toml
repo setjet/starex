@@ -28,7 +28,7 @@ tauri-plugin-log = "2"
 tauri-plugin-window-state = "2"
 sysinfo = { version = "0.37", default-features = false, features = ["system"] }
 # HTTPS goes through the operating system (schannel on Windows): no bundled crypto library.
-reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls", "system-proxy"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "native-tls", "system-proxy"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = { version = "2", features = ["deep-link"] }
