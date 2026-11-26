@@ -14,8 +14,6 @@
 </p>
 
 <p>
-  <a href="https://github.com/setjet/starex/releases/latest"><img src="https://img.shields.io/github/v/release/setjet/starex?include_prereleases&label=release&color=7c3aed" alt="Latest release"></a>
-  <a href="https://github.com/setjet/starex/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/setjet/starex/ci.yml?branch=main&label=build" alt="Build status"></a>
   <a href="#install"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-3a3a3a" alt="Windows, macOS and Linux"></a>
   <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/built%20with-Rust-b7410e" alt="Built with Rust"></a>
   <a href="https://tauri.app"><img src="https://img.shields.io/badge/Tauri-2-24c8db" alt="Tauri 2"></a>
