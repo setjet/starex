@@ -2,6 +2,7 @@ import { HardDrive } from "./icons";
 import { Show } from "solid-js";
 import { count, timeAgo } from "../lib/format";
 import { store } from "../lib/store";
+import { storeLabels } from "./ImportDialog";
 import type { Game } from "../lib/types";
 import { Spinner } from "./ui/Spinner";
 
@@ -23,6 +24,11 @@ export function LocalStatus(props: { game: Game }) {
 
   const status = (): { tone: Tone; text: string } => {
     if (store.running[g().id]) return { tone: "live", text: "Playing now" };
+    const source = g().source;
+    if (source) {
+      if (store.notInstalled[g().id]) return { tone: "bad", text: "Not installed" };
+      return { tone: "ok", text: `Installed with ${storeLabels[source.store]}` };
+    }
     const t = task();
     if (t) {
       const p = t.progress;
@@ -40,6 +46,12 @@ export function LocalStatus(props: { game: Game }) {
   };
 
   const detail = () => {
+    const source = g().source;
+    if (source) {
+      return store.notInstalled[g().id]
+        ? `Uninstalled in ${storeLabels[source.store]}. Install it there to play it here.`
+        : `${storeLabels[source.store]} keeps this game up to date. Starex starts it through ${storeLabels[source.store]}.`;
+    }
     const v = g().lastVerification;
     const parts = [v ? `Files checked ${timeAgo(v.at)}` : "Files not checked yet"];
     const scan = g().lastScan;
