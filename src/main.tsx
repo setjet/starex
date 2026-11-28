@@ -6,6 +6,9 @@ import "./styles/shell.css";
 import "./styles/game.css";
 import "./styles/dialogs.css";
 import "./styles/splash.css";
+import "./styles/home.css";
+import "./styles/bigpicture.css";
+import "./styles/light.css";
 
 import { render } from "solid-js/web";
 import { App } from "./App";
