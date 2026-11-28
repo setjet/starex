@@ -93,13 +93,9 @@ kbd {
   background: var(--sx-accent-soft);
 }
 
-:focus {
-  outline: none;
-}
-
+:focus,
 :focus-visible {
-  outline: 2px solid var(--sx-border-focus);
-  outline-offset: 2px;
+  outline: none;
 }
 
 ::-webkit-scrollbar {
