@@ -7,7 +7,11 @@ use serde::Deserialize;
 use starex_core::model::Game;
 use starex_core::saves;
 
-pub const SCHEME: &str = "starex";
+pub const SCHEME: &str = if starex_core::TEST_BUILD.is_some() {
+    "starex-test"
+} else {
+    "starex"
+};
 
 #[derive(Debug, Clone, Copy, Deserialize)]
 #[serde(rename_all = "camelCase")]
