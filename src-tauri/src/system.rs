@@ -130,3 +130,78 @@ pub fn apply_autostart(app: &AppHandle, enabled: bool) -> Result<(), String> {
     if enabled { launcher.enable() } else { launcher.disable() }
         .map_err(|e| format!("Could not change starting with the system: {e}"))
 }
+
+/// The signed-in user's name for greeting them: the display name Windows shows on the Start menu
+/// (the Microsoft account's name when there is one), the full name on macOS and Linux, else the
+/// account name. Read once and kept.
+pub fn user_display_name() -> String {
+    static NAME: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    NAME.get_or_init(|| {
+        os_display_name()
+            .or_else(|| std::env::var("USERNAME").or_else(|_| std::env::var("USER")).ok())
+            .map(|n| n.trim().to_owned())
+            .unwrap_or_default()
+    })
+    .clone()
+}
+
+#[cfg(windows)]
+fn os_display_name() -> Option<String> {
+    // The WinRT user API needs a COM apartment of its own, so ask from a short-lived thread.
+    std::thread::spawn(|| {
+        use windows::Foundation::IPropertyValue;
+        use windows::System::{KnownUserProperties, User};
+        use windows::Win32::System::Com::{COINIT_MULTITHREADED, CoInitializeEx, CoUninitialize};
+        use windows::core::Interface;
+
+        // SAFETY: paired with CoUninitialize below, on this thread only.
+        let com = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.is_ok();
+        let name = (|| {
+            let users = User::FindAllAsync().ok()?.join().ok()?;
+            let user = users.GetAt(0).ok()?;
+            let value = user
+                .GetPropertyAsync(&KnownUserProperties::DisplayName().ok()?)
+                .ok()?
+                .join()
+                .ok()?;
+            let name = value.cast::<IPropertyValue>().ok()?.GetString().ok()?.to_string();
+            Some(name.trim().to_owned()).filter(|n| !n.is_empty())
+        })();
+        if com {
+            // SAFETY: CoInitializeEx succeeded on this thread.
+            unsafe { CoUninitialize() };
+        }
+        name
+    })
+    .join()
+    .ok()
+    .flatten()
+}
+
+#[cfg(target_os = "macos")]
+fn os_display_name() -> Option<String> {
+    let out = std::process::Command::new("id").arg("-F").output().ok()?;
+    let name = String::from_utf8(out.stdout).ok()?.trim().to_owned();
+    (out.status.success() && !name.is_empty()).then_some(name)
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn os_display_name() -> Option<String> {
+    // The first part of the account's comment field in /etc/passwd is its full name.
+    let user = std::env::var("USER").ok()?;
+    let passwd = std::fs::read_to_string("/etc/passwd").ok()?;
+    passwd
+        .lines()
+        .map(|line| line.split(':').collect::<Vec<_>>())
+        .find(|fields| fields.first() == Some(&user.as_str()))
+        .and_then(|fields| fields.get(4)?.split(',').next().map(str::trim).map(str::to_owned))
+        .filter(|n| !n.is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn finds_the_users_name() {
+        assert!(!super::user_display_name().is_empty());
+    }
+}
