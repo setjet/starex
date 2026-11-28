@@ -5,8 +5,10 @@ import { launch, missingRuntimes, removeGame, restoreSaves, savesVersion, scan, 
 import { toast } from "../lib/toast";
 import type { BackupReason, Game, Runtime } from "../lib/types";
 import { installUpdate, updater } from "../lib/updater";
+import { versionLabel } from "../lib/version";
 import { Button } from "./ui/Button";
 import { Dialog } from "./ui/Dialog";
+import { storeLabels } from "./ImportDialog";
 import { Progress } from "./ui/Spinner";
 
 export function RemoveDialog(props: { game: Game }) {
@@ -20,7 +22,11 @@ export function RemoveDialog(props: { game: Game }) {
   return (
     <Dialog
       title={`Remove ${props.game.name}?`}
-      description="Starex forgets the game, its artwork, play time and baseline. The game's files and your save backups stay on your drive."
+      description={
+        props.game.source
+          ? `Starex forgets the game, its artwork and play time. It stays installed in ${storeLabels[props.game.source.store]}.`
+          : "Starex forgets the game, its artwork, play time and baseline. The game's files and your save backups stay on your drive."
+      }
       onClose={() => setDialog(null)}
       busy={busy()}
       size="sm"
@@ -47,7 +53,7 @@ export function UpdateDialog() {
   return (
     <Dialog
       title={`Starex ${update()?.version ?? ""}`}
-      description={`You have ${updater.appVersion()}. Starex restarts to finish the update; running games keep running.`}
+      description={`You have ${versionLabel()}. Starex restarts to finish the update; running games keep running.`}
       onClose={() => setDialog(null)}
       busy={working()}
       size="md"
@@ -58,7 +64,13 @@ export function UpdateDialog() {
             Later
           </Button>
           <Button variant="primary" loading={working()} onClick={() => void installUpdate()} data-autofocus>
-            {working() ? (updater.status() === "installing" ? "Installing" : "Downloading") : "Install and restart"}
+            {working()
+              ? updater.status() === "installing"
+                ? "Installing"
+                : "Downloading"
+              : updater.downloaded()
+                ? "Restart to update"
+                : "Install and restart"}
           </Button>
         </>
       }
