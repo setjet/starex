@@ -9,6 +9,7 @@ export type LaunchBehavior = "keepOpen" | "minimize" | "hide";
 export type LibrarySort = "recent" | "name" | "playtime";
 export type Backdrop = "none" | "aurora" | "game" | "custom";
 export type Accent = "blue" | "violet" | "pink" | "green" | "orange" | "white";
+export type Theme = "system" | "dark" | "light";
 
 export interface Artwork {
   banner: string | null;
@@ -45,6 +46,8 @@ export interface Game {
   addedAt: number;
   lastPlayed: number | null;
   playtimeSecs: number;
+  /** Play time the game's launcher keeps (Steam), shown in place of Starex's own where known. */
+  storePlaytime: StorePlaytime | null;
   sessions: number;
   lastVerification: VerificationSummary | null;
   saveDir: string | null;
@@ -56,9 +59,57 @@ export interface Game {
   history: PlaySession[];
   profiles: LaunchProfile[];
   activeProfile: string | null;
-  details: GameDetails | null;
   showOnDiscord: boolean;
   offline: boolean;
+  source: StoreRef | null;
+  runAsAdmin: boolean;
+  preLaunch: string;
+}
+
+export type Store = "steam" | "epic" | "gog" | "xbox";
+
+export interface StoreRef {
+  store: Store;
+  id: string;
+}
+
+/** A game another launcher installed, from `scan_stores`. */
+export interface FoundGame {
+  source: StoreRef;
+  name: string;
+  installDir: string;
+  executable: string;
+  artwork: Artwork;
+  inLibrary: boolean;
+}
+
+export interface SteamAccount {
+  steamId: string;
+  name: string;
+}
+
+export interface NewsItem {
+  gid: string;
+  title: string;
+  summary: string;
+  date: number;
+  source: string;
+}
+
+export interface Achievement {
+  name: string;
+  description: string;
+  icon: string;
+  iconGray: string;
+  achieved: boolean;
+  unlockedAt: number | null;
+  percent: number | null;
+}
+
+export interface Achievements {
+  total: number;
+  unlocked: number;
+  items: Achievement[];
 }
 
 export interface PlaySession {
@@ -74,15 +125,11 @@ export interface LaunchProfile {
   env: EnvVar[];
 }
 
-export interface GameDetails {
-  igdbId: number | null;
-  summary: string | null;
-  genres: string[];
-  releaseDate: number | null;
-  developer: string | null;
-  timeToBeat: number | null;
-  timeToComplete: number | null;
-  url: string | null;
+export interface StorePlaytime {
+  totalSecs: number | null;
+  recentSecs: number | null;
+  lastPlayed: number | null;
+  updatedAt: number;
 }
 
 export type ScanStatus = "clean" | "threats" | "unavailable" | "cancelled";
@@ -139,13 +186,15 @@ export interface GamePatch {
   profiles?: LaunchProfile[];
   activeProfile?: string | null;
   showOnDiscord?: boolean;
+  runAsAdmin?: boolean;
+  preLaunch?: string;
 }
 
 export interface Settings {
   launchBehavior: LaunchBehavior;
   restoreOnExit: boolean;
   verifyBeforeLaunch: boolean;
-  checkForUpdates: boolean;
+  autoDownloadUpdates: boolean;
   librarySort: LibrarySort;
   autoArtwork: boolean;
   steamgriddbKey: string;
@@ -159,14 +208,19 @@ export interface Settings {
   closeToTray: boolean;
   startWithSystem: boolean;
   globalShortcut: string;
-  igdbClientId: string;
-  igdbClientSecret: string;
   backdrop: Backdrop;
   backdropImage: string;
   backdropStrength: number;
   accent: Accent;
+  theme: Theme;
   launchAnimation: boolean;
   welcomeSeen: boolean;
+  steamApiKey: string;
+  steamId: string;
+  /** When Starex opens, add games newly installed with Steam or the Epic Games Launcher. */
+  autoImportStores: boolean;
+  /** Launcher games the user removed ("steam:570"); kept by the app. */
+  removedStoreGames: string[];
 }
 
 export interface Runtime {
@@ -193,6 +247,10 @@ export interface Bootstrap {
   repository: string;
   startHidden: boolean;
   discordBuiltin: boolean;
+  /** The signed-in user's name, for the launch animation's welcome. */
+  userName: string;
+  /** The number of a private test build; null for every normal build. */
+  testBuild: string | null;
 }
 
 /** One published version of Starex, from its GitHub releases. */
@@ -229,6 +287,7 @@ export interface FolderInspection {
   hasManifest: boolean;
   fileCount: number;
   totalBytes: number;
+  looksLikeGame: boolean;
   notes: { level: NoteLevel; text: string }[];
 }
 
