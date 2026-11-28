@@ -6,7 +6,6 @@ import {
   FolderOpen,
   Globe,
   Image,
-  Info,
   Link,
   Monitor,
   ScanSearch,
@@ -22,9 +21,9 @@ import {
   copyLaunchLink,
   createShortcut,
   fetchArtwork,
-  fetchDetails,
   patchGame,
   setDialog,
+  isStoreGame,
   setOffline,
   store,
   verify,
@@ -34,6 +33,7 @@ import type { MenuItem } from "./ui/Menu";
 
 /** A game's actions, opened by right-clicking it in the sidebar or the library. */
 export function gameMenuItems(g: Game): MenuItem[] {
+  const own = !isStoreGame(g);
   return [
     {
       label: "Properties…",
@@ -45,12 +45,16 @@ export function gameMenuItems(g: Game): MenuItem[] {
       icon: <FolderOpen />,
       onSelect: () => void api.reveal(g.id, "folder"),
     },
-    {
-      label: "Check files",
-      icon: <ShieldCheck />,
-      disabled: !!store.tasks[g.id],
-      onSelect: () => void verify(g.id, "quick"),
-    },
+    ...(own
+      ? [
+          {
+            label: "Check files",
+            icon: <ShieldCheck />,
+            disabled: !!store.tasks[g.id],
+            onSelect: () => void verify(g.id, "quick"),
+          },
+        ]
+      : []),
     {
       separatorBefore: true,
       label: g.favorite ? "Remove from favorites" : "Add to favorites",
@@ -78,17 +82,15 @@ export function gameMenuItems(g: Game): MenuItem[] {
       disabled: !store.settings.steamgriddbKey,
       onSelect: () => void fetchArtwork(g.id, false),
     },
-    {
-      label: g.details ? "Refresh game details" : "Find game details",
-      icon: <Info />,
-      disabled: !store.settings.igdbClientId || !store.settings.igdbClientSecret,
-      onSelect: () => void fetchDetails(g.id),
-    },
-    {
-      label: "Show executable",
-      icon: <ScanSearch />,
-      onSelect: () => void api.reveal(g.id, "executable"),
-    },
+    ...(own
+      ? [
+          {
+            label: "Show executable",
+            icon: <ScanSearch />,
+            onSelect: () => void api.reveal(g.id, "executable"),
+          },
+        ]
+      : []),
     ...(store.hostOs === "macos"
       ? []
       : [
@@ -110,7 +112,7 @@ export function gameMenuItems(g: Game): MenuItem[] {
       separatorBefore: store.hostOs === "macos",
       onSelect: () => void copyLaunchLink(g.id),
     },
-    ...(store.hostOs === "windows"
+    ...(store.hostOs === "windows" && own
       ? [
           {
             label: g.offline ? "Allow online access" : "Block online access",
