@@ -1,7 +1,7 @@
 {
   "name": "starex",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A clean, fast launcher for the games on your drive.",
   "license": "SEE LICENSE IN LICENSE",
   "type": "module",
