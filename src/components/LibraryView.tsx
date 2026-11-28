@@ -2,7 +2,7 @@ import { Play, Plus } from "./icons";
 import { For, Show } from "solid-js";
 import { generatedArt } from "../lib/art";
 import { timeAgo } from "../lib/format";
-import { launch, openContextMenu, query, select, setDialog, store, visibleGames } from "../lib/store";
+import { lastPlayedOf, launch, openContextMenu, query, select, setDialog, store, visibleGames } from "../lib/store";
 import { GameCover } from "./GameArt";
 import { StarMark } from "./StarMark";
 import { Button } from "./ui/Button";
@@ -44,7 +44,7 @@ export function LibraryView() {
                     type="button"
                     class="library-card-play"
                     aria-label={`Play ${game.name}`}
-                    disabled={!!store.running[game.id] || store.launching[game.id]}
+                    disabled={!!store.running[game.id] || store.launching[game.id] || store.notInstalled[game.id]}
                     onClick={() => void launch(game.id)}
                   >
                     <Play />
@@ -57,7 +57,13 @@ export function LibraryView() {
                     <span class="library-card-detail">
                       <Show
                         when={store.running[game.id]}
-                        fallback={game.lastPlayed ? `Played ${timeAgo(game.lastPlayed)}` : "Never played"}
+                        fallback={
+                          store.notInstalled[game.id]
+                            ? "Not installed"
+                            : lastPlayedOf(game)
+                              ? `Played ${timeAgo(lastPlayedOf(game) ?? 0)}`
+                              : "Never played"
+                        }
                       >
                         <span class="running-label">Playing now</span>
                       </Show>
