@@ -1,0 +1,501 @@
+/* Add game: import from a launcher, or add a game folder ------------------------------------------ */
+
+.add-choices {
+  display: grid;
+  gap: var(--sx-space-2);
+}
+
+.add-choice {
+  display: flex;
+  align-items: center;
+  gap: var(--sx-space-3);
+  border-radius: var(--sx-radius-lg);
+  background: var(--sx-bg-surface);
+  padding: var(--sx-space-3) var(--sx-space-4) var(--sx-space-3) var(--sx-space-3);
+  text-align: left;
+  box-shadow: 0 0 0 1px var(--sx-border) inset;
+  transition:
+    background var(--sx-duration-fast) ease,
+    box-shadow var(--sx-duration-fast) ease;
+}
+
+.add-choice:hover {
+  background: var(--sx-hover);
+  box-shadow: 0 0 0 1px var(--sx-border-strong) inset;
+}
+
+.add-choice:active {
+  background: var(--sx-bg-control-active);
+}
+
+.add-choice-mark {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--sx-radius-md);
+  background: var(--sx-bg-control);
+  color: var(--sx-text-primary);
+}
+
+.add-choice-mark svg {
+  width: 18px;
+  height: 18px;
+  color: var(--sx-text-secondary);
+}
+
+/* Steam's and Epic's logos stand on their own: no tile behind them. */
+.add-choice-mark[data-logo] {
+  background: none;
+}
+
+.add-choice-logo {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  user-select: none;
+}
+
+/* Epic's shield is near-black, like the card: a hairline edge keeps its shape visible. */
+.add-choice-logo[data-dark] {
+  filter: drop-shadow(0 0 0.6px rgba(255, 255, 255, 0.55));
+}
+
+.add-choice-copy {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.add-choice-title {
+  font-weight: var(--sx-weight-semibold);
+}
+
+.add-choice-text {
+  color: var(--sx-text-muted);
+  font-size: var(--sx-text-sm);
+}
+
+.add-choice-arrow {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  color: var(--sx-text-dim);
+  transition:
+    color var(--sx-duration-fast) ease,
+    transform var(--sx-duration-normal) var(--sx-ease-out);
+}
+
+.add-choice:hover .add-choice-arrow {
+  color: var(--sx-text-secondary);
+  transform: translateX(2px);
+}
+
+/* Import from a launcher: a quiet list that fills in as each game is added ----------------------- */
+
+.import-list {
+  display: grid;
+  max-height: min(360px, 46vh);
+  overflow-y: auto;
+  border-radius: var(--sx-radius-lg);
+  background: var(--sx-bg-surface);
+  box-shadow: 0 0 0 1px var(--sx-border) inset;
+}
+
+.import-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sx-space-3);
+  padding: var(--sx-space-2-5) var(--sx-space-3);
+}
+
+.import-row + .import-row {
+  border-top: 1px solid var(--sx-border);
+}
+
+/* Games still waiting their turn stay faint until they are added. */
+.import-row[data-state="waiting"] .import-copy,
+.import-row[data-state="waiting"] .import-art {
+  opacity: 0.4;
+}
+
+.import-row .import-copy,
+.import-row .import-art {
+  transition: opacity var(--sx-duration-slow) ease;
+}
+
+.import-art {
+  position: relative;
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: var(--sx-radius-sm);
+  font-size: 13px;
+  font-weight: var(--sx-weight-bold);
+}
+
+.import-art img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.import-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.import-name {
+  overflow: hidden;
+  font-weight: var(--sx-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.import-reason {
+  color: var(--sx-text-muted);
+  font-size: var(--sx-text-xs);
+  line-height: 16px;
+}
+
+.import-status {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--sx-text-muted);
+}
+
+.import-status svg {
+  width: 16px;
+  height: 16px;
+}
+
+.import-row[data-state="added"] .import-status {
+  color: var(--sx-success);
+  animation: import-done var(--sx-duration-slow) var(--sx-ease-spring) both;
+}
+
+.import-row[data-state="failed"] .import-status {
+  color: var(--sx-danger);
+}
+
+@keyframes import-done {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+.import-empty {
+  display: grid;
+  justify-items: center;
+  gap: var(--sx-space-2);
+  padding: var(--sx-space-8) var(--sx-space-4);
+  text-align: center;
+}
+
+.import-empty-title {
+  font-size: var(--sx-text-xl);
+  font-weight: var(--sx-weight-semibold);
+}
+
+.import-empty-text {
+  max-width: 400px;
+  color: var(--sx-text-muted);
+  line-height: 20px;
+}
+
+/* Quick search (Ctrl+K) ------------------------------------------------------------------------- */
+
+.dialog-overlay:has(.palette) {
+  place-items: start center;
+  padding-top: 14vh;
+}
+
+.dialog.palette {
+  max-width: 560px;
+  border-radius: var(--sx-radius-xl);
+}
+
+.palette-search {
+  display: flex;
+  align-items: center;
+  gap: var(--sx-space-3);
+  border-bottom: 1px solid var(--sx-border);
+  padding: 0 var(--sx-space-5);
+}
+
+.palette-search svg {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  color: var(--sx-text-dim);
+}
+
+.palette-input {
+  flex: 1;
+  height: 56px;
+  border: 0;
+  background: transparent;
+  color: var(--sx-text-primary);
+  font: inherit;
+  font-size: var(--sx-text-xl);
+  outline: none;
+}
+
+.palette-input::placeholder {
+  color: var(--sx-text-placeholder);
+}
+
+.palette-list {
+  display: grid;
+  max-height: min(420px, 52vh);
+  overflow-y: auto;
+  padding: var(--sx-space-2);
+}
+
+.palette-group {
+  padding: var(--sx-space-2) var(--sx-space-3) var(--sx-space-1);
+  color: var(--sx-text-dim);
+  font-size: var(--sx-text-xs);
+  font-weight: var(--sx-weight-semibold);
+  letter-spacing: var(--sx-tracking-caps);
+  text-transform: uppercase;
+}
+
+.palette-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sx-space-3);
+  min-height: 44px;
+  border-radius: var(--sx-radius-md);
+  padding: var(--sx-space-1-5) var(--sx-space-3);
+  text-align: left;
+}
+
+.palette-item[data-active] {
+  background: var(--sx-bg-control-active);
+}
+
+.palette-item-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--sx-radius-sm);
+  background: var(--sx-bg-control-hover);
+  color: var(--sx-text-muted);
+}
+
+.palette-item-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.palette-item-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+}
+
+.palette-item-name {
+  overflow: hidden;
+  font-weight: var(--sx-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.palette-item-detail {
+  color: var(--sx-text-dim);
+  font-size: var(--sx-text-xs);
+}
+
+.palette-item-hint {
+  color: var(--sx-text-dim);
+  font-size: var(--sx-text-xs);
+  opacity: 0;
+}
+
+.palette-item[data-active] .palette-item-hint {
+  opacity: 1;
+}
+
+.palette-empty {
+  padding: var(--sx-space-6) var(--sx-space-3);
+  color: var(--sx-text-muted);
+  text-align: center;
+}
+
+.palette-footer {
+  display: flex;
+  gap: var(--sx-space-4);
+  border-top: 1px solid var(--sx-border);
+  padding: var(--sx-space-2-5) var(--sx-space-5);
+  color: var(--sx-text-dim);
+  font-size: var(--sx-text-xs);
+}
+
+.palette-footer kbd,
+.palette-item-hint kbd {
+  margin-right: var(--sx-space-1);
+  border-radius: var(--sx-radius-xs);
+  background: var(--sx-bg-surface);
+  padding: 1px 5px;
+  color: var(--sx-text-muted);
+  font: inherit;
+  box-shadow: 0 0 0 1px var(--sx-border-strong) inset;
+}
+
+/* Steam: achievements and news on a game's page ---------------------------------------------- */
+
+.panel.achievements,
+.panel.news {
+  grid-column: 1 / -1;
+}
+
+.achievements-progress {
+  display: grid;
+  gap: var(--sx-space-2);
+}
+
+.achievements-count {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sx-space-2);
+}
+
+.achievements-count strong {
+  font-size: var(--sx-text-3xl);
+  font-weight: var(--sx-weight-semibold);
+  letter-spacing: var(--sx-tracking-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.achievements-count span {
+  color: var(--sx-text-muted);
+}
+
+.achievements-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--sx-space-2);
+}
+
+.achievement {
+  display: flex;
+  align-items: center;
+  gap: var(--sx-space-3);
+  min-width: 0;
+  border-radius: var(--sx-radius-md);
+  background: var(--sx-bg-sunken);
+  padding: var(--sx-space-2);
+}
+
+.achievement-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border-radius: var(--sx-radius-sm);
+  background: var(--sx-bg-control-hover);
+  color: var(--sx-text-dim);
+}
+
+.achievement-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.achievement-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.achievement[data-locked] .achievement-icon img {
+  opacity: 0.5;
+}
+
+.achievement-copy {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.achievement-name {
+  overflow: hidden;
+  font-size: var(--sx-text-sm);
+  font-weight: var(--sx-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.achievement[data-locked] .achievement-name {
+  color: var(--sx-text-muted);
+}
+
+.achievement-detail {
+  overflow: hidden;
+  color: var(--sx-text-dim);
+  font-size: var(--sx-text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.news-list {
+  display: grid;
+}
+
+.news-item {
+  display: grid;
+  gap: var(--sx-space-1);
+  border-top: 1px solid var(--sx-border);
+  padding: var(--sx-space-3) 0;
+  text-align: left;
+}
+
+.news-item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.news-item:last-child {
+  padding-bottom: 0;
+}
+
+.news-title {
+  font-weight: var(--sx-weight-medium);
+  transition: color var(--sx-duration-fast) ease;
+}
+
+.news-item:hover .news-title {
+  color: var(--sx-accent-text);
+}
+
+.news-meta {
+  color: var(--sx-text-dim);
+  font-size: var(--sx-text-xs);
+}
+
+.news-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--sx-text-muted);
+  font-size: var(--sx-text-sm);
+  line-height: 20px;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
