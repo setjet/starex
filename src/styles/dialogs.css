@@ -216,6 +216,24 @@ body[data-dialog-open] .content {
   color: var(--sx-text-muted);
 }
 
+/* Add a game: the folder isn't a game. The panel shrinks to a small popup and plays its entrance
+   again, so it reads as a fresh message rather than the review resizing. */
+.dialog.no-game {
+  animation: no-game-in 260ms var(--sx-ease-panel) both;
+}
+
+@keyframes no-game-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+}
+
+.no-game-text {
+  color: var(--sx-text-secondary);
+  line-height: 1.55;
+}
+
 .review,
 .form {
   display: grid;
@@ -552,6 +570,11 @@ body[data-dialog-open] .content {
   animation: page-enter var(--sx-duration-slow) var(--sx-ease-panel) both;
 }
 
+/* Keep the scrollbar clear of the popup's rounded corners, so it never looks cut off. */
+.settings-panel-scroll::-webkit-scrollbar-track {
+  margin: var(--sx-space-6) 0;
+}
+
 .settings-title {
   font-size: var(--sx-text-2xl);
   font-weight: var(--sx-weight-semibold);
@@ -696,6 +719,32 @@ body[data-dialog-open] .content {
   color: var(--sx-text-muted);
 }
 
+/* Private test builds only: a quiet badge beside the name and a short note. */
+.about-test-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  margin-left: var(--sx-space-2);
+  border-radius: var(--sx-radius-pill);
+  padding: 0 var(--sx-space-2);
+  box-shadow: inset 0 0 0 1px var(--sx-border-strong);
+  color: var(--sx-warning);
+  font-size: 10px;
+  font-weight: var(--sx-weight-semibold);
+  letter-spacing: var(--sx-tracking-caps);
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
+.about-test-note {
+  border-radius: var(--sx-radius-lg);
+  background: var(--sx-warning-soft);
+  padding: var(--sx-space-3) var(--sx-space-4);
+  color: var(--sx-text-secondary);
+  font-size: var(--sx-text-sm);
+  line-height: 1.5;
+}
+
 .about-details {
   margin: 0;
 }
@@ -768,11 +817,6 @@ body[data-dialog-open] .content {
     background: var(--sx-bg-control-hover);
     box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
   }
-}
-
-.creator-pill:focus-visible {
-  outline: 2px solid var(--sx-border-focus);
-  outline-offset: 2px;
 }
 
 .creator-avatar {
@@ -1198,11 +1242,6 @@ body[data-dialog-open] .content {
   }
 }
 
-.welcome-link:focus-visible {
-  outline: 2px solid var(--sx-border-focus);
-  outline-offset: -2px;
-}
-
 .welcome-footer {
   padding: var(--sx-space-6);
   animation: page-enter var(--sx-duration-hero) var(--sx-ease-panel) 260ms both;
@@ -1453,4 +1492,24 @@ body[data-dialog-open] .content {
   z-index: 2;
   top: var(--sx-space-3);
   right: var(--sx-space-3);
+}
+
+/* A section title with a one-line note tucked under it (Integrations: where keys live). */
+.settings-heading {
+  display: grid;
+  gap: var(--sx-space-1);
+}
+
+.settings-subtitle {
+  display: flex;
+  align-items: center;
+  gap: var(--sx-space-1-5);
+  color: var(--sx-text-muted);
+  font-size: var(--sx-text-sm);
+}
+
+.settings-subtitle svg {
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
 }
