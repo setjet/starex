@@ -1,4 +1,5 @@
-import type { Accent } from "./types";
+import { createSignal } from "solid-js";
+import type { Accent, Theme } from "./types";
 
 /** Each accent's main colour, hover colour and the text that sits on it. */
 const ACCENTS: Record<Accent, { base: string; hover: string; text: string; ink: string }> = {
@@ -10,7 +11,32 @@ const ACCENTS: Record<Accent, { base: string; hover: string; text: string; ink: 
   white: { base: "#f0f0f0", hover: "#ffffff", text: "#141414", ink: "#f0f0f0" },
 };
 
+/** On a light interface: text shades dark enough to read, and "white" Play becomes near-black. */
+const LIGHT_ACCENTS: Partial<Record<Accent, Partial<{ base: string; hover: string; text: string; ink: string }>>> = {
+  blue: { ink: "#0064c8" },
+  violet: { ink: "#5b3fd6" },
+  pink: { ink: "#b8236d" },
+  green: { ink: "#187a41" },
+  orange: { ink: "#b4500f" },
+  white: { base: "#1c1c1e", hover: "#000000", text: "#ffffff", ink: "#1c1c1e" },
+};
+
 export const ACCENT_ORDER: Accent[] = ["blue", "violet", "pink", "green", "orange", "white"];
+
+const systemDark = window.matchMedia("(prefers-color-scheme: dark)");
+const [systemPrefersDark, setSystemPrefersDark] = createSignal(systemDark.matches);
+systemDark.addEventListener("change", (e) => setSystemPrefersDark(e.matches));
+
+const [resolved, setResolved] = createSignal<"dark" | "light">("dark");
+/** The scheme on screen now: the chosen one, or the system's when the choice is System. */
+export const activeTheme = resolved;
+
+/** Applies the chosen theme. With System it follows the system's light or dark setting live. */
+export function applyTheme(theme: Theme) {
+  const scheme = theme === "system" ? (systemPrefersDark() ? "dark" : "light") : theme;
+  setResolved(scheme);
+  document.documentElement.dataset.theme = scheme;
+}
 
 export function accentColor(accent: Accent): string {
   return ACCENTS[accent].base;
@@ -22,8 +48,8 @@ function soft(hex: string, alpha: number): string {
 }
 
 /** Points the accent tokens at the chosen colour. Everything that uses them follows. */
-export function applyAccent(accent: Accent) {
-  const a = ACCENTS[accent] ?? ACCENTS.blue;
+export function applyAccent(accent: Accent, scheme: "dark" | "light" = "dark") {
+  const a = { ...(ACCENTS[accent] ?? ACCENTS.blue), ...(scheme === "light" ? LIGHT_ACCENTS[accent] : {}) };
   const root = document.documentElement.style;
   root.setProperty("--sx-play", a.base);
   root.setProperty("--sx-play-hover", a.hover);
@@ -31,5 +57,5 @@ export function applyAccent(accent: Accent) {
   root.setProperty("--sx-accent", a.base);
   root.setProperty("--sx-accent-hover", a.hover);
   root.setProperty("--sx-accent-text", a.ink);
-  root.setProperty("--sx-accent-soft", soft(a.base, 0.16));
+  root.setProperty("--sx-accent-soft", soft(a.base, scheme === "light" ? 0.12 : 0.16));
 }
