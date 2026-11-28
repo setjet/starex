@@ -43,6 +43,16 @@ pub enum Accent {
     White,
 }
 
+/// Light or dark interface, or whichever the system uses.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub enum Theme {
+    System,
+    #[default]
+    Dark,
+    Light,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum LibrarySort {
@@ -62,7 +72,9 @@ pub struct Settings {
     pub restore_on_exit: bool,
     /// Run a quick verification before every launch and stop if required files are missing.
     pub verify_before_launch: bool,
-    pub check_for_updates: bool,
+    /// Download a new version in the background as soon as it is available; it installs when the
+    /// user restarts Starex from the update prompt.
+    pub auto_download_updates: bool,
     pub library_sort: LibrarySort,
     /// Fetch artwork from SteamGridDB for new games. Needs `steamgriddb_key`.
     pub auto_artwork: bool,
@@ -86,19 +98,27 @@ pub struct Settings {
     pub start_with_system: bool,
     /// A system-wide key combination that brings Starex up, e.g. "Alt+Shift+S". Empty turns it off.
     pub global_shortcut: String,
-    /// Twitch developer credentials for IGDB game details.
-    pub igdb_client_id: String,
-    pub igdb_client_secret: String,
     pub backdrop: Backdrop,
     /// The custom backdrop image, copied into Starex's data folder.
     pub backdrop_image: String,
     /// How strongly the backdrop shows, 0 to 100.
     pub backdrop_strength: u8,
     pub accent: Accent,
+    /// Light, dark, or following the system.
+    pub theme: Theme,
     /// Play the star animation when Starex opens.
     pub launch_animation: bool,
     /// The welcome message has been shown once.
     pub welcome_seen: bool,
+    /// A Steam Web API key, for achievements in Steam games.
+    pub steam_api_key: String,
+    /// The user's SteamID64. Empty uses the account last signed in to the Steam client.
+    pub steam_id: String,
+    /// When Starex opens, add games newly installed with Steam or the Epic Games Launcher.
+    pub auto_import_stores: bool,
+    /// Launcher games ("steam:570") the user removed from the library, which automatic imports
+    /// leave out. Kept by the app, not edited in Settings.
+    pub removed_store_games: Vec<String>,
 }
 
 impl Default for Settings {
@@ -107,7 +127,7 @@ impl Default for Settings {
             launch_behavior: LaunchBehavior::default(),
             restore_on_exit: true,
             verify_before_launch: false,
-            check_for_updates: true,
+            auto_download_updates: true,
             library_sort: LibrarySort::default(),
             auto_artwork: true,
             steamgriddb_key: String::new(),
@@ -120,15 +140,23 @@ impl Default for Settings {
             discord_app_id: String::new(),
             close_to_tray: false,
             start_with_system: false,
-            global_shortcut: "Alt+Shift+S".to_owned(),
-            igdb_client_id: String::new(),
-            igdb_client_secret: String::new(),
+            // A test build leaves the shortcut to the real Starex unless one is set in its Settings.
+            global_shortcut: if crate::TEST_BUILD.is_some() {
+                String::new()
+            } else {
+                "Alt+Shift+S".to_owned()
+            },
             backdrop: Backdrop::None,
             backdrop_image: String::new(),
             backdrop_strength: 60,
             accent: Accent::Blue,
+            theme: Theme::Dark,
             launch_animation: true,
             welcome_seen: false,
+            steam_api_key: String::new(),
+            steam_id: String::new(),
+            auto_import_stores: false,
+            removed_store_games: Vec::new(),
         }
     }
 }
