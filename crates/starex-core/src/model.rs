@@ -61,15 +61,58 @@ pub struct Game {
     /// The profile Play uses; `None` is the game's own launch settings.
     #[serde(default)]
     pub active_profile: Option<String>,
-    /// Description, genres and more from IGDB.
-    #[serde(default)]
-    pub details: Option<GameDetails>,
     /// Show this game on the user's Discord profile while it runs.
     #[serde(default = "yes")]
     pub show_on_discord: bool,
     /// A firewall rule blocks the game's programs from going online.
     #[serde(default)]
     pub offline: bool,
+    /// The store the game was imported from (Steam, Epic, GOG, Xbox), if any.
+    #[serde(default)]
+    pub source: Option<StoreRef>,
+    /// Play time the game's launcher keeps (Steam), shown in place of Starex's own where known.
+    #[serde(default)]
+    pub store_playtime: Option<StorePlaytime>,
+    /// Windows: start the game as administrator (Windows asks first).
+    #[serde(default)]
+    pub run_as_admin: bool,
+    /// A command run before the game starts, e.g. a mod manager or a script. Empty runs nothing.
+    #[serde(default)]
+    pub pre_launch: String,
+}
+
+/// Play time a launcher keeps for one of its games. Each value is `None` when the launcher does
+/// not say; Starex's own count stands in for it.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct StorePlaytime {
+    /// All-time play time, in seconds.
+    pub total_secs: Option<u64>,
+    /// Play time over the last two weeks, in seconds.
+    pub recent_secs: Option<u64>,
+    /// When the game was last played, Unix seconds.
+    pub last_played: Option<u64>,
+    /// When Starex last read these, Unix seconds.
+    pub updated_at: u64,
+}
+
+/// A launcher that installs games.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
+#[serde(rename_all = "camelCase")]
+pub enum Store {
+    Steam,
+    Epic,
+    Gog,
+    Xbox,
+}
+
+/// Where a game came from: the store and the game's id in that store (a Steam app id, an Epic
+/// app name, a GOG product id, an Xbox package folder).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct StoreRef {
+    pub store: Store,
+    pub id: String,
 }
 
 /// How many past sessions a game keeps.
@@ -94,23 +137,6 @@ pub struct LaunchProfile {
     pub executable: Option<PathBuf>,
     #[serde(default)]
     pub env: Vec<EnvVar>,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct GameDetails {
-    pub igdb_id: Option<u64>,
-    pub summary: Option<String>,
-    #[serde(default)]
-    pub genres: Vec<String>,
-    /// Unix seconds.
-    pub release_date: Option<i64>,
-    pub developer: Option<String>,
-    /// Typical time to finish the main story, in seconds.
-    pub time_to_beat: Option<u64>,
-    /// Time to complete everything, in seconds.
-    pub time_to_complete: Option<u64>,
-    pub url: Option<String>,
 }
 
 impl Game {
@@ -222,6 +248,9 @@ pub struct NewGame {
     pub executable: PathBuf,
     #[serde(default)]
     pub launch_args: String,
+    /// Set when the game is imported from another launcher.
+    #[serde(default)]
+    pub source: Option<StoreRef>,
 }
 
 /// Fields the user can change in a game's properties. `None` leaves a field as it is.
@@ -248,6 +277,8 @@ pub struct GamePatch {
     #[serde(default, with = "double_option")]
     pub active_profile: Option<Option<String>>,
     pub show_on_discord: Option<bool>,
+    pub run_as_admin: Option<bool>,
+    pub pre_launch: Option<String>,
 }
 
 mod double_option {
