@@ -1,6 +1,6 @@
 import { Match, Show, Switch } from "solid-js";
 import { fileUrl } from "../lib/api";
-import { selectedGame, store } from "../lib/store";
+import { lastPlayedOf, selectedGame, store } from "../lib/store";
 import { FadeImage } from "./GameArt";
 
 /** What fills the window behind the library and game pages (Settings > Appearance). */
@@ -10,7 +10,7 @@ export function Backdrop() {
   const gameArt = () => {
     const game =
       selectedGame() ??
-      [...store.games].filter((g) => !g.hidden).sort((a, b) => (b.lastPlayed ?? 0) - (a.lastPlayed ?? 0))[0];
+      [...store.games].filter((g) => !g.hidden).sort((a, b) => (lastPlayedOf(b) ?? 0) - (lastPlayedOf(a) ?? 0))[0];
     return fileUrl(game?.artwork.banner ?? game?.artwork.cover);
   };
 
