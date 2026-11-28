@@ -229,7 +229,6 @@
 }
 
 .sidebar-search-input:focus {
-  border-color: var(--sx-border-strong);
   background: var(--sx-bg-raised);
 }
 
