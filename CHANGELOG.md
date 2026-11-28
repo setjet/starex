@@ -13,12 +13,6 @@
 
 * pass CI on Rust 1.100 and calm dependency updates ([ca3295c](https://github.com/setjet/starex/commit/ca3295c9660efe261e3c8affa7d7d9b67d0ff3fa))
 
-
-### Documentation
-
-* add download buttons for Windows, macOS and Linux ([e393d9e](https://github.com/setjet/starex/commit/e393d9e49ca485fd5910959bcf3a6df8f6f3d0c9))
-* remove the release and build badges ([d5bbf09](https://github.com/setjet/starex/commit/d5bbf094aee312f5e4d909e7cceb49fab179e1d9))
-
 ## Changelog
 
 All notable changes to Starex are written here automatically by release-please from the
