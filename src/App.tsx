@@ -2,7 +2,11 @@ import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { CircleCheck, CircleX, FolderInput, Info, TriangleAlert } from "./components/icons";
 import { createEffect, createSignal, ErrorBoundary, For, type JSX, Match, onCleanup, onMount, Show, Switch } from "solid-js";
+import { AddChooser } from "./components/AddChooser";
 import { AddGameDialog } from "./components/AddGameDialog";
+import { BigPicture } from "./components/BigPicture";
+import { CommandPalette } from "./components/CommandPalette";
+import { ImportDialog } from "./components/ImportDialog";
 import { ChangelogDialog } from "./components/ChangelogDialog";
 import { GameView } from "./components/GameView";
 import { LibraryView } from "./components/LibraryView";
@@ -18,8 +22,21 @@ import { OverlayScrollbar } from "./components/ui/OverlayScrollbar";
 import { gameMenuItems } from "./components/gameMenu";
 import { ContextMenu } from "./components/ui/Menu";
 import { errorText } from "./lib/api";
-import { applyAccent } from "./lib/theme";
-import { contextMenu, dialog, init, launch, selectedGame, setContextMenu, setDialog, startHidden, store } from "./lib/store";
+import { activeTheme, applyAccent, applyTheme } from "./lib/theme";
+import {
+  bigPicture,
+  contextMenu,
+  dialog,
+  init,
+  launch,
+  selectedGame,
+  setBigPicture,
+  setContextMenu,
+  setDialog,
+  startHidden,
+  startupTasks,
+  store,
+} from "./lib/store";
 import { dismiss, toast, toasts } from "./lib/toast";
 
 export function App() {
@@ -29,6 +46,15 @@ export function App() {
   const [failed, setFailed] = createSignal("");
   const [splashPlay, setSplashPlay] = createSignal(false);
   const [showSplash, setShowSplash] = createSignal(true);
+  // The launch loader waits for the startup work, but never longer than this.
+  const MAX_LOAD_MS = 8000;
+  // Without the loader (turned off, or reduced motion), the window opens once the startup work is
+  // done, waiting at most this long.
+  const QUIET_LOAD_MS = 3000;
+  const [loadProgress, setLoadProgress] = createSignal(0);
+  const [loaded, setLoaded] = createSignal(false);
+  let finishSplash!: () => void;
+  const splashFinished = new Promise<void>((resolve) => (finishSplash = resolve));
 
   onMount(async () => {
     try {
@@ -38,21 +64,47 @@ export function App() {
     }
     // The window starts hidden so it never flashes white; show it once the first frame is ready.
     // The launch animation can be turned off in Settings > Appearance.
-    if (!store.settings.launchAnimation) setShowSplash(false);
-    // The first time Starex opens: a welcome, once the launch animation has finished.
-    if (!store.settings.welcomeSeen) {
-      setTimeout(() => {
-        if (!dialog()) setDialog({ type: "welcome" });
-      }, store.settings.launchAnimation ? 1900 : 300);
+    const animate =
+      store.settings.launchAnimation && !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (!animate) {
+      setShowSplash(false);
+      finishSplash();
     }
+    // The startup work: install states, Steam play time, new launcher games and artwork. It runs
+    // the same with or without the launch loader, which stays until it is done (at least five
+    // seconds, at most MAX_LOAD_MS).
+    const work = startupTasks(setLoadProgress);
+    const workOrTimeout = (ms: number) => Promise.race([work, new Promise((resolve) => setTimeout(resolve, ms))]);
+    void workOrTimeout(MAX_LOAD_MS).then(() => setLoaded(true));
+    // The first time Starex opens: a welcome, once the launch loader has finished.
+    if (!store.settings.welcomeSeen) {
+      void splashFinished.then(() =>
+        setTimeout(() => {
+          if (!dialog()) setDialog({ type: "welcome" });
+        }, 100),
+      );
+    }
+    // Games newly installed with Steam or Epic, when that is on in Settings. Said once the launch
+    // loader has finished, so the message is seen.
+    void Promise.all([work, splashFinished]).then(([added]) => {
+      if (added.length === 0) return;
+      const names = added.map((g) => g.name);
+      toast(added.length === 1 ? `${names[0]} added to your library` : `${added.length} new games added to your library`, {
+        tone: "success",
+        detail: added.length === 1 ? "Newly installed, found automatically." : names.slice(0, 4).join(", ") + (names.length > 4 ? " and more" : ""),
+      });
+    });
     // Started with the system: wait in the tray instead of opening.
     if (startHidden()) setSplashPlay(true);
-    else
+    else {
+      // Without the loader, the window opens once everything has loaded, so nothing pops in.
+      if (!animate) await workOrTimeout(QUIET_LOAD_MS);
       requestAnimationFrame(() => {
         void getCurrentWindow()
           .show()
           .finally(() => setSplashPlay(true));
       });
+    }
 
     const unlisten = await getCurrentWebview().onDragDropEvent((event) => {
       const kind = event.payload.type;
@@ -60,7 +112,7 @@ export function App() {
       else setDropping(false);
       if (kind === "drop") {
         const path = event.payload.paths[0];
-        if (path && !dialog()) setDialog({ type: "add", path });
+        if (path && !dialog()) setDialog({ type: "addFolder", path });
         else if (path) toast("Close the open dialog first, then drop the folder again.");
       }
     });
@@ -77,6 +129,9 @@ export function App() {
     } else if (mod && e.key.toLowerCase() === "n") {
       e.preventDefault();
       setDialog({ type: "add" });
+    } else if (mod && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      setDialog({ type: "palette" });
     } else if (mod && e.key === ",") {
       e.preventDefault();
       setDialog({ type: "settings" });
@@ -101,7 +156,8 @@ export function App() {
   createEffect(() => {
     document.documentElement.toggleAttribute("data-reduce-motion", store.settings.reduceMotion);
   });
-  createEffect(() => applyAccent(store.settings.accent));
+  createEffect(() => applyTheme(store.settings.theme));
+  createEffect(() => applyAccent(store.settings.accent, activeTheme()));
 
   return (
     <div class="app" data-os={store.hostOs || undefined} data-backdrop={store.settings.backdrop !== "none" || undefined}>
@@ -125,6 +181,12 @@ export function App() {
         </div>
       </div>
 
+      <Show when={bigPicture() && store.ready}>
+        <Guard onReset={() => setBigPicture(false)}>
+          <BigPicture />
+        </Guard>
+      </Show>
+
       <Show when={dropping()}>
         <div class="drop-overlay" aria-hidden="true">
           <div class="drop-card">
@@ -138,7 +200,10 @@ export function App() {
         {(d) => (
           <Guard onReset={() => setDialog(null)}>
           <Switch>
-            <Match when={d.type === "add" && d}>{(a) => <AddGameDialog initialPath={a().path} />}</Match>
+            <Match when={d.type === "add"}>
+              <AddChooser />
+            </Match>
+            <Match when={d.type === "addFolder" && d}>{(a) => <AddGameDialog initialPath={a().path} />}</Match>
             <Match when={d.type === "settings" && d}>{(s) => <SettingsDialog section={s().section} />}</Match>
             <Match when={d.type === "properties" && d}>
               {(p) => (
@@ -184,6 +249,10 @@ export function App() {
             <Match when={d.type === "welcome"}>
               <WelcomeDialog />
             </Match>
+            <Match when={d.type === "import" && d}>{(i) => <ImportDialog store={i().store} />}</Match>
+            <Match when={d.type === "palette"}>
+              <CommandPalette />
+            </Match>
           </Switch>
           </Guard>
         )}
@@ -200,7 +269,7 @@ export function App() {
       </Show>
 
       <Show when={showSplash()}>
-        <Splash play={splashPlay()} />
+        <Splash play={splashPlay()} ready={loaded()} progress={loadProgress()} onDone={finishSplash} />
       </Show>
 
       <div class="toasts" role="status" aria-live="polite">
