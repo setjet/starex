@@ -33,9 +33,12 @@ function game(id: string, name: string, extra: Partial<Game>): Game {
     history: [],
     profiles: [],
     activeProfile: null,
-    details: null,
     showOnDiscord: true,
     offline: false,
+    source: null,
+    storePlaytime: null,
+    runAsAdmin: false,
+    preLaunch: "",
     ...extra,
   };
 }
@@ -55,6 +58,8 @@ function demoHistory() {
 const games: Game[] = [
   game("nebula", "Nebula Drift", {
     favorite: true,
+    source: { store: "steam", id: "4000" },
+    storePlaytime: { totalSecs: 182 * 3600 + 40 * 60, recentSecs: 6 * 3600 + 15 * 60, lastPlayed: now - 2 * 3600, updatedAt: now },
     lastPlayed: now - 2 * 3600,
     playtimeSecs: 51_720,
     sessions: 23,
@@ -68,17 +73,6 @@ const games: Game[] = [
       { id: "modded", name: "Modded", launchArgs: "-dx12 -mods", executable: null, env: [] },
     ],
     activeProfile: "dx11",
-    details: {
-      igdbId: 1,
-      summary:
-        "Pilot a salvaged freighter through a collapsing nebula, trading with drifting stations and outrunning the storm that follows you from system to system.",
-      genres: ["Adventure", "Simulator", "Indie"],
-      releaseDate: now - 400 * day,
-      developer: "Lumen Works",
-      timeToBeat: 21 * 3600,
-      timeToComplete: 46 * 3600,
-      url: null,
-    },
     lastVerification: { at: now - 3 * 3600, mode: "full", status: "pass", filesChecked: 4_812, missing: 0, modified: 0, durationMs: 6_400 },
   }),
   game("hollow", "Hollow Meridian", { lastPlayed: now - 3 * day, playtimeSecs: 9_300, sessions: 6 }),
@@ -100,7 +94,7 @@ let settings: Settings = {
   launchBehavior: "minimize",
   restoreOnExit: true,
   verifyBeforeLaunch: false,
-  checkForUpdates: true,
+  autoDownloadUpdates: true,
   librarySort: "recent",
   autoArtwork: true,
   steamgriddbKey: "",
@@ -114,14 +108,17 @@ let settings: Settings = {
   closeToTray: false,
   startWithSystem: false,
   globalShortcut: "Alt+Shift+S",
-  igdbClientId: "",
-  igdbClientSecret: "",
   backdrop: "none",
   backdropImage: "",
   backdropStrength: 60,
   accent: "blue",
+  theme: "dark",
   launchAnimation: true,
   welcomeSeen: false,
+  steamApiKey: "",
+  steamId: "",
+  autoImportStores: false,
+  removedStoreGames: [],
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -156,7 +153,7 @@ export function installDemo() {
       const id = args.id as string;
       switch (cmd) {
         case "bootstrap":
-          return { games, settings, running: [], dataDir: "C:\\Users\\you\\AppData\\Roaming\\Starex", hostArch: "x86_64", hostOs: "windows", startHidden: false, discordBuiltin: false, repository: "https://github.com/setjet/starex" };
+          return { games, settings, running: [], dataDir: "C:\\Users\\you\\AppData\\Roaming\\Starex", hostArch: "x86_64", hostOs: "windows", startHidden: false, discordBuiltin: false, repository: "https://github.com/setjet/starex", userName: "Alex", testBuild: null };
         case "save_settings":
           settings = args.settings as Settings;
           return settings;
@@ -226,9 +223,6 @@ export function installDemo() {
         case "restore_saves":
           await sleep(400);
           return null;
-        case "fetch_details":
-          await sleep(600);
-          return games.find((g) => g.id === id);
         case "set_offline": {
           await sleep(600);
           const g = games.find((x) => x.id === id);
@@ -279,6 +273,72 @@ export function installDemo() {
               prerelease: false,
             },
           ];
+        case "scan_stores":
+          await sleep(900);
+          return [
+            ["steam", "220", "Half Light 2", false],
+            ["steam", "4000", "Nebula Drift", true],
+            ["steam", "4100", "Copper Coast", false],
+            ["steam", "4200", "Lantern Keep", false],
+            ["steam", "4300", "Velvet Circuit", false],
+            ["epic", "ns:item:quail", "Quiet Harbor", false],
+            ["epic", "ns:item:moss", "Mossbound", false],
+            ["gog", "1207658924", "The Long Road", false],
+            ["xbox", "Starfall", "Starfall", false],
+          ]
+            .filter(([store]) => !args.store || store === args.store)
+            .map(([store, sid, name, inLibrary]) => ({
+            source: { store, id: sid },
+            name,
+            installDir: `D:\\${store}\\${String(name).replace(/\W+/g, "")}`,
+            executable: `D:\\${store}\\${String(name).replace(/\W+/g, "")}\\game.exe`,
+            artwork: { banner: null, cover: null, logo: null, icon: null },
+            inLibrary,
+          }));
+        case "store_status":
+          return [];
+        case "sync_steam_playtime":
+          return 0;
+        case "auto_import_stores":
+          await sleep(600);
+          return settings.autoImportStores
+            ? [game(`auto-${Date.now()}`, "Copper Coast", { source: { store: "steam", id: "4100" }, addedAt: Math.floor(Date.now() / 1000) })]
+            : [];
+        case "import_games": {
+          await sleep(500);
+          const list = args.games as { source: Game["source"]; name: string; installDir: string; executable: string }[];
+          // Fresh objects, like the real backend; the store adds them to the library.
+          return list.map((g, i) => game(`import-${Date.now()}-${i}`, g.name, { source: g.source, installDir: g.installDir, executable: g.executable, addedAt: Math.floor(Date.now() / 1000) }));
+        }
+        case "steam_account":
+          return { steamId: "76561198000000000", name: "you" };
+        case "steam_news":
+          await sleep(500);
+          if (games.find((g) => g.id === id)?.source?.store !== "steam") throw "This is not a Steam game.";
+          return [
+            { gid: "1", title: "Patch 1.4: smoother warp jumps", summary: "Warp jumps no longer stutter on large stations. Docking is faster, and the freighter's cargo hold remembers its layout between sessions.", date: now - 2 * day, source: "Community Announcements" },
+            { gid: "2", title: "The Storm Season update is live", summary: "A new season of storms rolls through the nebula with three new stations, a story chapter and photo mode.", date: now - 16 * day, source: "Community Announcements" },
+            { gid: "3", title: "Nebula Drift is 30% off this week", summary: "Celebrate the anniversary with the biggest discount yet.", date: now - 40 * day, source: "Steam" },
+          ];
+        case "steam_achievements":
+          await sleep(500);
+          if (games.find((g) => g.id === id)?.source?.store !== "steam") throw "This is not a Steam game.";
+          if (!settings.steamApiKey) throw "Add a Steam Web API key in Settings > Integrations to see achievements.";
+          return {
+            total: 24,
+            unlocked: 9,
+            items: Array.from({ length: 24 }, (_, i) => ({
+              name: ["First Light", "Salvager", "Storm Chaser", "Trader", "Long Haul", "Dockmaster"][i % 6] + (i >= 6 ? ` ${Math.floor(i / 6) + 1}` : ""),
+              description: "Reach a milestone in the nebula.",
+              icon: "",
+              iconGray: "",
+              achieved: i < 9,
+              unlockedAt: i < 9 ? now - i * 3 * day : null,
+              percent: Math.max(1, 80 - i * 3.2),
+            })),
+          };
+        case "open_steam_news":
+          return null;
         case "launch_link":
           return `starex://play/${id}`;
         case "take_launch_request":
