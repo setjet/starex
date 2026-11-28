@@ -4,7 +4,7 @@ description = "A clean, fast launcher for the games on your drive."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
-license.workspace = true
+license-file.workspace = true
 authors.workspace = true
 repository.workspace = true
 default-run = "starex"
@@ -26,6 +26,8 @@ tauri-plugin-process = "2"
 tauri-plugin-log = "2"
 tauri-plugin-window-state = "2"
 sysinfo = { version = "0.37", default-features = false, features = ["system"] }
+# Reads and writes PNG logos to trim their empty edges (already in the build through Tauri).
+png = "0.18"
 # HTTPS goes through the operating system (schannel on Windows): no bundled crypto library.
 reqwest = { version = "0.12", default-features = false, features = ["json", "native-tls", "system-proxy"] }
 
@@ -38,6 +40,8 @@ tauri-plugin-updater = { version = "2", default-features = false, features = ["n
 
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.62", features = [
+    "Foundation",
+    "System",
     "Win32_Foundation",
     "Win32_System_Com",
     "Win32_System_Threading",
