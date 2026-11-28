@@ -39,10 +39,9 @@ $env:STAREX_DATA_DIR = "$env:TEMP\starex-dev"; bun run dev      # Windows PowerS
 
 | Path | What lives there |
 | --- | --- |
-| `crates/starex-core/src` | All game logic, one module per job: `library`, `inspect`, `binary`, `verify`, `manifest`, `antivirus`, `saves`, `launch`, `settings`. Every module has its tests at the bottom. |
-| `src-tauri/src` | The desktop app: `commands.rs` (what the interface can call), `sessions.rs` (running games), `artwork.rs`. |
-| `src` | The interface. `lib/store.ts` holds the state and actions; components are in `components/`; every colour and size is in `styles/tokens.css`. |
-| `docs` | [How Starex works](docs/HOW_IT_WORKS.md), [architecture](docs/ARCHITECTURE.md), the [manifest format](docs/MANIFEST.md) and [releasing](docs/RELEASING.md). |
+| `crates/starex-core/src` | All game logic, one module per job: `library`, `inspect`, `binary`, `verify`, `manifest`, `antivirus`, `saves`, `launch`, `settings`, `stores` (Steam and Epic Games libraries). Every module has its tests at the bottom. |
+| `src-tauri/src` | The desktop app: `commands.rs` (what the interface can call), `sessions.rs` (running games), `artwork.rs`, `steam.rs` (news, achievements and play time from the Steam Web API), `discord.rs`. |
+| `src` | The interface. `lib/store.ts` holds the state and actions; components are in `components/`; every colour and size is in `styles/tokens.css`, with the light theme in `styles/light.css`. |
 
 ## Checks
 
