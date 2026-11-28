@@ -3,7 +3,6 @@
 
 mod artwork;
 mod commands;
-mod details;
 mod discord;
 mod firewall;
 mod releases;
@@ -11,6 +10,7 @@ mod savedb;
 mod sessions;
 mod shortcuts;
 mod state;
+mod steam;
 mod system;
 
 use tauri::{Emitter, Manager, WindowEvent};
@@ -81,6 +81,8 @@ fn main() {
             // Opened from a game shortcut or a starex:// link: start that game once the window is ready.
             *state.launch_request() = shortcuts::requested_game(std::env::args());
             app.manage(state);
+            // Logos stored before Starex trimmed their empty edges, fixed once in the background.
+            artwork::trim_stored_logos_once(app.handle().clone());
 
             #[cfg(desktop)]
             {
@@ -158,10 +160,18 @@ fn main() {
             commands::create_shortcut,
             commands::launch_link,
             commands::take_launch_request,
-            commands::fetch_details,
             commands::set_backdrop_image,
             commands::set_offline,
             commands::fetch_changelog,
+            commands::scan_stores,
+            commands::import_games,
+            commands::store_status,
+            commands::auto_import_stores,
+            commands::steam_account,
+            commands::sync_steam_playtime,
+            commands::steam_news,
+            commands::steam_achievements,
+            commands::open_steam_news,
         ])
         .run(tauri::generate_context!());
 
