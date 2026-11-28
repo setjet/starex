@@ -21,7 +21,10 @@ const artSlots: { kind: ArtworkKind; label: string; hint: string }[] = [
 ];
 
 export function PropertiesDialog(props: { game: Game; tab?: Tab }) {
-  const [tab, setTab] = createSignal<Tab>(props.tab ?? "general");
+  // A launcher's game has only General and Artwork.
+  const [tab, setTab] = createSignal<Tab>(
+    props.game.source && (props.tab === "launch" || props.tab === "saves") ? "general" : (props.tab ?? "general"),
+  );
   const [name, setName] = createSignal(props.game.name);
   const [favorite, setFavorite] = createSignal(props.game.favorite);
   const [completed, setCompleted] = createSignal(props.game.completed);
@@ -32,6 +35,8 @@ export function PropertiesDialog(props: { game: Game; tab?: Tab }) {
   const [args, setArgs] = createSignal(props.game.launchArgs);
   const [workingDir, setWorkingDir] = createSignal<string | null>(props.game.workingDir);
   const [env, setEnv] = createSignal<EnvVar[]>(props.game.env.map((v) => ({ ...v })));
+  const [preLaunch, setPreLaunch] = createSignal(props.game.preLaunch);
+  const [runAsAdmin, setRunAsAdmin] = createSignal(props.game.runAsAdmin);
   const [saveDir, setSaveDir] = createSignal<string | null>(props.game.saveDir);
   const [backupSaves, setBackupSaves] = createSignal(props.game.backupSaves);
   const [suggestions] = createResource(
@@ -57,6 +62,8 @@ export function PropertiesDialog(props: { game: Game; tab?: Tab }) {
       launchArgs: args(),
       workingDir: workingDir(),
       env: env().filter((v) => v.key.trim()),
+      preLaunch: preLaunch(),
+      runAsAdmin: runAsAdmin(),
       saveDir: saveDir(),
       backupSaves: backupSaves(),
     });
@@ -123,7 +130,7 @@ export function PropertiesDialog(props: { game: Game; tab?: Tab }) {
       }
     >
       <div class="tabs" role="tablist">
-        <For each={["general", "launch", "saves", "artwork"] as Tab[]}>
+        <For each={(props.game.source ? ["general", "artwork"] : ["general", "launch", "saves", "artwork"]) as Tab[]}>
           {(t) => (
             <button
               type="button"
@@ -211,6 +218,30 @@ export function PropertiesDialog(props: { game: Game; tab?: Tab }) {
                 </Show>
               </div>
             </div>
+            <label class="field">
+              <span class="field-label">Before launch</span>
+              <input
+                class="input mono"
+                value={preLaunch()}
+                placeholder="Optional, e.g. a mod manager or a script"
+                spellcheck={false}
+                onInput={(e) => setPreLaunch(e.currentTarget.value)}
+              />
+              <span class="field-description">
+                A command that runs before the game starts, in its working folder. Starex waits for it to finish, for up to 2
+                minutes, and does not start the game if it fails.
+              </span>
+            </label>
+            <Show when={store.hostOs === "windows"}>
+              <div class="setting-card">
+                <Switch
+                  label="Run as administrator"
+                  description="Windows asks for permission each time the game starts."
+                  checked={runAsAdmin()}
+                  onChange={setRunAsAdmin}
+                />
+              </div>
+            </Show>
             <div class="field">
               <div class="field-label-row">
                 <span class="field-label">Environment variables</span>
