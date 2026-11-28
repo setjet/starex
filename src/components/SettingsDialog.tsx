@@ -1,5 +1,5 @@
-import { ArrowUpRight, Blocks, Bug, Eye, EyeOff, FolderOpen, Gamepad2, Heart, Info, Palette, RefreshCw, ScrollText, Settings2, X } from "./icons";
-import { createSignal, For, type JSX, Match, Show, Switch as SolidSwitch } from "solid-js";
+import { ArrowUpRight, Blocks, Bug, Eye, EyeOff, FolderOpen, Gamepad2, Heart, Info, Lock, Palette, RefreshCw, ScrollText, Settings2, X } from "./icons";
+import { createResource, createSignal, For, type JSX, Match, Show, Switch as SolidSwitch } from "solid-js";
 import { open } from "@tauri-apps/plugin-dialog";
 import { api, fileUrl } from "../lib/api";
 import { timeAgo } from "../lib/format";
@@ -7,6 +7,7 @@ import { type SettingsSection, saveSettings, setBackdropImage, setDialog, store 
 import { ACCENT_ORDER, accentColor } from "../lib/theme";
 import type { Accent } from "../lib/types";
 import { checkForUpdates, updater } from "../lib/updater";
+import { versionLabel } from "../lib/version";
 import { StarMark } from "./StarMark";
 import { Button, IconButton } from "./ui/Button";
 import { Dialog } from "./ui/Dialog";
@@ -103,6 +104,12 @@ export function SettingsDialog(props: { section?: SettingsSection }) {
               </Group>
               <SaveSettings />
               <Group title="Library">
+                <Switch
+                  label="Import new games automatically"
+                  description="When Starex opens, games newly installed with Steam or Epic Games are added to your library. Games you remove stay removed."
+                  checked={s().autoImportStores}
+                  onChange={(v) => void saveSettings({ autoImportStores: v })}
+                />
                 <Row label="Sort games by" description="Favorites always come first.">
                   <Segmented
                     label="Sort games by"
@@ -115,6 +122,14 @@ export function SettingsDialog(props: { section?: SettingsSection }) {
                     ]}
                   />
                 </Row>
+              </Group>
+              <Group title="Discord">
+                <Switch
+                  label="Show what you're playing"
+                  description="Your Discord profile shows the game while you play, when Discord is open. You can turn it off per game in its Properties."
+                  checked={s().discordPresence}
+                  onChange={(v) => void saveSettings({ discordPresence: v })}
+                />
               </Group>
               <Show when={store.hostOs && store.hostOs !== "windows"}>
                 <WineSetting />
@@ -129,9 +144,15 @@ export function SettingsDialog(props: { section?: SettingsSection }) {
             </Match>
 
             <Match when={section() === "integrations"}>
-              <SettingsHeader title="Integrations" />
-              <DiscordSettings />
+              <div class="settings-heading">
+                <SettingsHeader title="Integrations" />
+                <p class="settings-subtitle">
+                  <Lock />
+                  Keys stay on this device and are only sent to the service they belong to.
+                </p>
+              </div>
               <ArtworkSettings />
+              <SteamSettings />
             </Match>
 
             <Match when={section() === "updates"}>
@@ -170,6 +191,21 @@ function AppearanceSettings() {
 
   return (
     <>
+      <Group title="Theme">
+        <Row label="Appearance" description="System follows your computer's light or dark setting.">
+          <Segmented
+            label="Theme"
+            value={s().theme}
+            onChange={(v) => void saveSettings({ theme: v })}
+            options={[
+              { value: "system", label: "System" },
+              { value: "dark", label: "Dark" },
+              { value: "light", label: "Light" },
+            ]}
+          />
+        </Row>
+      </Group>
+
       <Group title="Backdrop">
         <Row label="Behind your library" description="Fills the window behind the library and game pages.">
           <Segmented
@@ -234,7 +270,7 @@ function AppearanceSettings() {
       <Group title="Motion">
         <Switch
           label="Launch animation"
-          description="The star animation when Starex opens."
+          description="The welcome animation when Starex opens."
           checked={s().launchAnimation}
           onChange={(v) => void saveSettings({ launchAnimation: v })}
         />
@@ -342,52 +378,6 @@ function WineSetting() {
   );
 }
 
-function DiscordSettings() {
-  const [appId, setAppId] = createSignal(store.settings.discordAppId);
-  return (
-    <Group title="Discord">
-      <Switch
-        label="Show what you're playing"
-        description="Your Discord profile shows the game while you play, when Discord is open. You can turn it off per game in its Properties."
-        checked={store.settings.discordPresence}
-        onChange={(v) => void saveSettings({ discordPresence: v })}
-      />
-      <div class="setting-stack">
-        <div class="switch-copy">
-          <span class="switch-label">Application ID</span>
-          <span class="switch-description">
-            <Show
-              when={store.discordBuiltin}
-              fallback="Discord needs an application ID. Create a free application named Starex in Discord's developer portal and paste its ID here."
-            >
-              Starex uses its own application. Paste another ID only if you want your status to show a different name.
-            </Show>
-          </span>
-        </div>
-        <div class="input-row">
-          <input
-            class="input mono"
-            placeholder={store.discordBuiltin ? "Built in" : "e.g. 1234567890123456789"}
-            value={appId()}
-            spellcheck={false}
-            onInput={(e) => setAppId(e.currentTarget.value.replace(/[^0-9]/g, ""))}
-          />
-          <Button
-            variant="primary"
-            disabled={appId().trim() === store.settings.discordAppId}
-            onClick={() => void saveSettings({ discordAppId: appId().trim() })}
-          >
-            Save
-          </Button>
-        </div>
-        <button type="button" class="text-link" onClick={() => void api.openLink("https://discord.com/developers/applications")}>
-          Open the Discord developer portal <ArrowUpRight />
-        </button>
-      </div>
-    </Group>
-  );
-}
-
 function SystemSettings() {
   const startLabel = () =>
     store.hostOs === "macos" ? "Open at login" : store.hostOs === "linux" ? "Start when you sign in" : "Start with Windows";
@@ -463,7 +453,6 @@ function ArtworkSettings() {
 
   return (
     <>
-      <IgdbSettings />
       <Group title="Artwork · SteamGridDB">
         <div class="setting-stack">
           <div class="switch-copy">
@@ -507,13 +496,16 @@ function ArtworkSettings() {
 function UpdateSettings() {
   const status = () => updater.status();
   const line = () => {
+    if (store.testBuild) return "Updates are off in test builds, so this build is never replaced by a public release.";
     switch (status()) {
       case "checking":
         return "Checking for updates…";
       case "upToDate":
         return "Starex is up to date.";
       case "available":
-        return `Starex ${updater.available()?.version} is available.`;
+        return updater.downloaded()
+          ? `Starex ${updater.available()?.version} is ready to install.`
+          : `Starex ${updater.available()?.version} is available.`;
       case "downloading":
         return `Downloading… ${Math.round(updater.progress() * 100)}%`;
       case "installing":
@@ -529,7 +521,7 @@ function UpdateSettings() {
     <>
       <div class="update-hero">
         <div class="update-hero-copy">
-          <span class="update-version">Starex {updater.appVersion()}</span>
+          <span class="update-version">Starex {versionLabel()}</span>
           <span class="update-status" data-status={status()}>
             {line()}
           </span>
@@ -537,9 +529,11 @@ function UpdateSettings() {
         <Show
           when={status() === "available"}
           fallback={
-            <Button icon={<RefreshCw />} loading={status() === "checking"} onClick={() => void checkForUpdates(true)}>
-              Check now
-            </Button>
+            <Show when={!store.testBuild}>
+              <Button icon={<RefreshCw />} loading={status() === "checking"} onClick={() => void checkForUpdates(true)}>
+                Check now
+              </Button>
+            </Show>
           }
         >
           <Button variant="primary" onClick={() => setDialog({ type: "update" })}>
@@ -547,12 +541,12 @@ function UpdateSettings() {
           </Button>
         </Show>
       </div>
-      <Group title="Automatic updates">
+      <Group title="Options">
         <Switch
-          label="Check for updates when Starex starts"
-          description="Starex asks its GitHub releases for a newer version. Updates are signed and install only when you choose."
-          checked={store.settings.checkForUpdates}
-          onChange={(v) => void saveSettings({ checkForUpdates: v })}
+          label="Automatically download updates"
+          description="Download new versions when they become available"
+          checked={store.settings.autoDownloadUpdates}
+          onChange={(v) => void saveSettings({ autoDownloadUpdates: v })}
         />
       </Group>
       <Group title="Release notes">
@@ -580,15 +574,30 @@ function About() {
           <StarMark size={64} />
         </div>
         <div class="about-identity">
-          <h2 class="about-name">Starex</h2>
-          <p class="about-tagline">A clean, fast launcher for the games on your drive.</p>
+          <h2 class="about-name">
+            Starex
+            <Show when={store.testBuild}>
+              <span class="about-test-badge">Test build</span>
+            </Show>
+          </h2>
+          <p class="about-tagline">A fast launcher for games on your drive.</p>
         </div>
       </header>
+
+      <Show when={store.testBuild}>
+        {(build) => (
+          <p class="about-test-note">
+            This is private test build {build()}, made to try new features before they are released. It is not an
+            official release and not meant for public use. It keeps its own library and settings, separate from Starex,
+            and never updates itself.
+          </p>
+        )}
+      </Show>
 
       <dl class="about-details setting-card">
         <div class="about-row">
           <dt>Version</dt>
-          <dd>{updater.appVersion()}</dd>
+          <dd>{versionLabel()}</dd>
         </div>
         <div class="about-row">
           <dt>Platform</dt>
@@ -596,7 +605,7 @@ function About() {
         </div>
         <div class="about-row">
           <dt>License</dt>
-          <dd>MIT, free and open source</dd>
+          <dd>PolyForm Strict</dd>
         </div>
       </dl>
 
@@ -645,51 +654,64 @@ function CreatorCredit() {
   );
 }
 
-/** Twitch developer credentials, for game details from IGDB. */
-function IgdbSettings() {
-  const [id, setId] = createSignal(store.settings.igdbClientId);
-  const [secret, setSecret] = createSignal(store.settings.igdbClientSecret);
+/** A Steam Web API key and Steam ID, for achievements in Steam games. */
+function SteamSettings() {
+  const [key, setKey] = createSignal(store.settings.steamApiKey);
+  const [steamId, setSteamId] = createSignal(store.settings.steamId);
   const [reveal, setReveal] = createSignal(false);
-  const dirty = () => id().trim() !== store.settings.igdbClientId || secret().trim() !== store.settings.igdbClientSecret;
+  const [account] = createResource(() => api.steamAccount().catch(() => null));
+  const dirty = () => key().trim() !== store.settings.steamApiKey || steamId().trim() !== store.settings.steamId;
+  const placeholder = () => {
+    const found = account();
+    return found ? `${found.steamId} (${found.name || "found in Steam"})` : "Steam ID (SteamID64)";
+  };
   return (
-    <Group title="Game details · IGDB">
+    <Group title="Achievements · Steam">
       <div class="setting-stack">
         <div class="switch-copy">
-          <span class="switch-label">Client ID and secret</span>
+          <span class="switch-label">Web API key and Steam ID</span>
           <span class="switch-description">
-            Adds a description, genres, release date, developer and time to beat to each game. IGDB is free with a Twitch
-            developer application. Starex sends a game's name to IGDB only when it looks up that game.
+            Shows your achievements on each Steam game's page. The key is free, and your Steam profile's game details
+            must be public. Starex finds your Steam ID from the Steam app when it is installed. News for Steam games
+            needs neither.
           </span>
         </div>
-        <input
-          class="input mono"
-          placeholder="Client ID"
-          value={id()}
-          spellcheck={false}
-          autocomplete="off"
-          onInput={(e) => setId(e.currentTarget.value)}
-        />
         <div class="input-row">
           <input
             class="input mono"
             type={reveal() ? "text" : "password"}
-            placeholder="Client secret"
-            value={secret()}
+            placeholder="Steam Web API key"
+            value={key()}
             spellcheck={false}
             autocomplete="off"
-            onInput={(e) => setSecret(e.currentTarget.value)}
+            onInput={(e) => setKey(e.currentTarget.value)}
           />
-          <Button variant="secondary" onClick={() => setReveal((v) => !v)} icon={reveal() ? <EyeOff /> : <Eye />} aria-label={reveal() ? "Hide secret" : "Show secret"} />
+          <Button
+            variant="secondary"
+            onClick={() => setReveal((v) => !v)}
+            icon={reveal() ? <EyeOff /> : <Eye />}
+            aria-label={reveal() ? "Hide key" : "Show key"}
+          />
+        </div>
+        <div class="input-row">
+          <input
+            class="input mono"
+            placeholder={placeholder()}
+            value={steamId()}
+            spellcheck={false}
+            autocomplete="off"
+            onInput={(e) => setSteamId(e.currentTarget.value)}
+          />
           <Button
             variant="primary"
             disabled={!dirty()}
-            onClick={() => void saveSettings({ igdbClientId: id().trim(), igdbClientSecret: secret().trim() })}
+            onClick={() => void saveSettings({ steamApiKey: key().trim(), steamId: steamId().trim() })}
           >
             Save
           </Button>
         </div>
-        <button type="button" class="text-link" onClick={() => void api.openLink("https://dev.twitch.tv/console/apps")}>
-          Create a Twitch application <ArrowUpRight />
+        <button type="button" class="text-link" onClick={() => void api.openLink("https://steamcommunity.com/dev/apikey")}>
+          Get a Steam Web API key <ArrowUpRight />
         </button>
       </div>
     </Group>
