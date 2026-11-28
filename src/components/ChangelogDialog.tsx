@@ -82,7 +82,7 @@ export function ChangelogDialog() {
 
 function ReleaseEntry(props: { release: Release; latest: boolean; index: number }) {
   const blocks = () => parseNotes(props.release.notes, props.release.version);
-  const installed = () => props.release.version === updater.appVersion();
+  const installed = () => !store.testBuild && props.release.version === updater.appVersion();
   const date = () =>
     props.release.publishedAt
       ? new Date(props.release.publishedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
