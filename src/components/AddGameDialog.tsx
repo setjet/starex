@@ -19,7 +19,7 @@ const packageLabels: Record<string, string> = {
 
 /** Choose a folder, let Starex inspect it, review and confirm. */
 export function AddGameDialog(props: { initialPath?: string }) {
-  const [phase, setPhase] = createSignal<"choose" | "scanning" | "review">("choose");
+  const [phase, setPhase] = createSignal<"choose" | "scanning" | "review" | "notGame">("choose");
   const [inspection, setInspection] = createSignal<FolderInspection | null>(null);
   const [name, setName] = createSignal("");
   const [exe, setExe] = createSignal<string | null>(null);
@@ -79,6 +79,12 @@ export function AddGameDialog(props: { initialPath?: string }) {
     try {
       const result = await api.inspectFolder(folder);
       setInspection(result);
+      // Not a game: say so in a small popup instead of the full review, and skip the virus scan.
+      // Private test builds add any folder with a program, game or not.
+      if (!result.looksLikeGame && !store.testBuild) {
+        setPhase("notGame");
+        return;
+      }
       setName(result.suggestedName);
       const first = result.candidates.find((c) => c.runnable);
       const match = preferred && result.candidates.find((c) => c.path.toLowerCase() === preferred?.toLowerCase());
@@ -121,7 +127,12 @@ export function AddGameDialog(props: { initialPath?: string }) {
     return v.state === "done" ? v.report : null;
   };
   const threats = () => report()?.status === "threats";
-  const canAdd = () => !!exe() && name().trim().length > 0 && (selected()?.runnable ?? true) && !scanning();
+  const canAdd = () =>
+    !!exe() &&
+    name().trim().length > 0 &&
+    (selected()?.runnable ?? true) &&
+    (!!inspection()?.looksLikeGame || !!store.testBuild) &&
+    !scanning();
   const scanProgress = () => {
     const v = virus();
     const p = v.state === "running" ? store.tasks[v.taskId]?.progress : undefined;
@@ -152,13 +163,31 @@ export function AddGameDialog(props: { initialPath?: string }) {
 
   return (
     <Dialog
-      title="Add a game"
-      description={phase() === "review" ? inspection()?.root : "Point Starex at the folder that holds the game's files."}
+      title={phase() === "notGame" ? "No game found" : "Add a game"}
+      description={
+        phase() === "review" || phase() === "notGame"
+          ? inspection()?.root
+          : "Point Starex at the folder that holds the game's files."
+      }
       onClose={close}
       busy={saving()}
-      size="lg"
+      size={phase() === "notGame" ? "sm" : "lg"}
+      class={phase() === "notGame" ? "no-game" : undefined}
       footer={
-        <Show when={phase() === "review"}>
+        <Show
+          when={phase() === "review"}
+          fallback={
+            <Show when={phase() === "notGame"}>
+              <div class="dialog-footer-spacer" />
+              <Button variant="secondary" onClick={close}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={() => void choose()}>
+                Choose another folder
+              </Button>
+            </Show>
+          }
+        >
           <Button
             variant="ghost"
             onClick={() => {
@@ -207,6 +236,12 @@ export function AddGameDialog(props: { initialPath?: string }) {
             <Spinner size={22} />
             <span>Scanning the folder…</span>
           </div>
+        </Match>
+
+        <Match when={phase() === "notGame"}>
+          <p class="no-game-text">
+            Starex couldn't find a game in this folder. Choose the folder that holds the game's own files.
+          </p>
         </Match>
 
         <Match when={phase() === "review" && inspection()}>
