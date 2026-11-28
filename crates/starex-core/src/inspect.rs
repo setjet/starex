@@ -67,6 +67,157 @@ const SKIP_EXE: &[&str] = &[
     "redist",
 ];
 
+/// Files only games ship: engine runtimes, game SDKs and storefront libraries. Lower-case names.
+const GAME_FILES: &[&str] = &[
+    "unityplayer.dll",
+    "unityplayer.so",
+    "unityplayer.dylib",
+    "gameassembly.dll",
+    "globalgamemanagers",
+    "data.unity3d",
+    "data.win",
+    "game.unx",
+    "game.ios",
+    "rpg_core.js",
+    "rmmz_core.js",
+    "game.rgss3a",
+    "steam_appid.txt",
+    "steam_api.dll",
+    "steam_api64.dll",
+    "libsteam_api.so",
+    "libsteam_api.dylib",
+    "galaxy.dll",
+    "galaxy64.dll",
+    "eossdk-win32-shipping.dll",
+    "eossdk-win64-shipping.dll",
+    "uplay_r1_loader.dll",
+    "uplay_r1_loader64.dll",
+    "discord_game_sdk.dll",
+    "fna.dll",
+    "monogame.framework.dll",
+    "microsoft.xna.framework.dll",
+    "love.dll",
+    "crysystem.dll",
+    "openal32.dll",
+    "soft_oal.dll",
+    "sdl2.dll",
+    "sdl3.dll",
+    // SDL's controller mappings, which source ports and decompilation ports ship.
+    "gamecontrollerdb.txt",
+    // Files cracked and repacked games carry: Steam emulators and their settings.
+    "steam_emu.ini",
+    "smartsteamemu.ini",
+    "steam_interfaces.txt",
+    "codex.ini",
+    "cpy.ini",
+    "onlinefix.ini",
+    "onlinefix64.dll",
+    "cream_api.ini",
+    // Construct games (often exported with NW.js, which looks like Chromium).
+    "c2runtime.js",
+    "c3runtime.js",
+];
+
+/// Name starts of libraries that only games ship (FMOD, Bink, PhysX, SDL, OpenAL).
+const GAME_LIBRARY_PREFIXES: &[&str] = &[
+    "fmod",
+    "libfmod",
+    "binkw",
+    "bink2w",
+    "physx",
+    "libsdl2",
+    "libsdl3",
+    "libopenal",
+];
+
+/// Game data formats: engine packages, game archives, game video and game audio banks.
+const GAME_EXTENSIONS: &[&str] = &[
+    "utoc", "ucas", "pck", "assets", "vpk", "bsp", "ba2", "bsa", "esm", "rpf", "forge", "cpk", "xnb", "rpa", "rpyc",
+    "rgssad", "rgss2a", "rgss3a", "bik", "bk2", "usm", "bnk", "wem", "fsb", "bank", "wad",
+    // Ports and more engines: Ship of Harkinian and other Torch ports, the Retro Engine (Sonic
+    // decompilations), id Tech 3 and 4, Frostbite, Defold.
+    "otr", "o2r", "rsdk", "pk3", "pk4", "cas", "arcd",
+];
+
+/// Files every Chromium, Electron and CEF app ships. Those apps also use `.pak` files, so a
+/// `.pak` only counts as game data in a folder without them.
+const CHROMIUM_FILES: &[&str] = &[
+    "icudtl.dat",
+    "v8_context_snapshot.bin",
+    "snapshot_blob.bin",
+    "libcef.dll",
+    "libcef.so",
+];
+
+/// What one file says about whether a folder holds a game.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Marker {
+    Game,
+    /// A `.pak` archive: Unreal and id Tech games, but also Chromium resources.
+    Pak,
+    Chromium,
+}
+
+/// Game evidence gathered while walking a folder.
+#[derive(Default)]
+struct GameEvidence {
+    game: std::cell::Cell<bool>,
+    pak: std::cell::Cell<bool>,
+    chromium: std::cell::Cell<bool>,
+}
+
+impl GameEvidence {
+    fn offer(&self, marker: Option<Marker>) {
+        match marker {
+            Some(Marker::Game) => self.game.set(true),
+            Some(Marker::Pak) => self.pak.set(true),
+            Some(Marker::Chromium) => self.chromium.set(true),
+            None => {}
+        }
+    }
+
+    fn found(&self) -> bool {
+        self.game.get() || (self.pak.get() && !self.chromium.get())
+    }
+}
+
+/// Folders that only games ship: anti-cheat, the Steam redistributables, Ren'Py's runtime.
+const GAME_DIRS: &[&str] = &[
+    "easyanticheat",
+    "eaanticheat",
+    "battleye",
+    "_commonredist",
+    "directx",
+    "renpy",
+    // Unreal Engine's game archives folder (Content/Paks), also in Unreal games that ship a
+    // Chromium-based browser, whose files would otherwise hide their .pak archives.
+    "paks",
+    // The Goldberg Steam emulator's settings, in cracked games.
+    "steam_settings",
+];
+
+/// DLLs a game program loads directly: controllers, game audio and older game graphics APIs.
+/// Not `d3d11`/`d3d12`: Chromium and Electron programs load those too.
+const GAME_IMPORTS: &[&str] = &[
+    "xinput",
+    "dinput",
+    "d3d8.dll",
+    "d3d9.dll",
+    "ddraw.dll",
+    "xaudio2",
+    "x3daudio",
+    "steam_api",
+    "binkw",
+    "bink2w",
+    "fmod",
+    "openal32.dll",
+    "sdl2.dll",
+    "sdl3.dll",
+    "unityplayer.dll",
+    // Vulkan: games and their ports draw with it directly; Chromium-based apps do not import it.
+    "vulkan-1.dll",
+];
+
 /// Words that mark a batch file as the game's launcher.
 const LAUNCH_WORDS: &[&str] = &["launch", "launcher", "start", "play", "run", "game"];
 
@@ -159,6 +310,9 @@ pub struct FolderInspection {
     pub has_manifest: bool,
     pub file_count: u64,
     pub total_bytes: u64,
+    /// Whether the folder holds a game and not some other program: engine files, game data,
+    /// game SDKs, or a program that loads game libraries. Only games can be added.
+    pub looks_like_game: bool,
     /// Plain-language findings the user should know about before adding the game.
     pub notes: Vec<Note>,
 }
@@ -246,11 +400,15 @@ pub fn inspect_folder(root: &Path) -> std::io::Result<FolderInspection> {
     // A repack or installer: `setup.exe` next to its compressed `.bin` archives.
     let mut root_setup = false;
     let mut root_bins = 0u32;
+    // Also set by folders the walk skips (anti-cheat, redistributables), so it is shared.
+    let evidence = GameEvidence::default();
 
-    let mut walker = WalkDir::new(root)
-        .follow_links(false)
-        .into_iter()
-        .filter_entry(|e| !(e.file_type().is_dir() && e.depth() > 0 && is_skipped_dir(e.path())));
+    let mut walker = WalkDir::new(root).follow_links(false).into_iter().filter_entry(|e| {
+        if e.file_type().is_dir() && e.depth() > 0 && is_game_dir(e.path()) {
+            evidence.offer(Some(Marker::Game));
+        }
+        !(e.file_type().is_dir() && e.depth() > 0 && is_skipped_dir(e.path()))
+    });
     while let Some(entry) = walker.next() {
         let Ok(entry) = entry else { continue };
         // A macOS app bundle is one program: offer it and do not look inside.
@@ -260,6 +418,9 @@ pub fn inspect_folder(root: &Path) -> std::io::Result<FolderInspection> {
         {
             if !cfg!(windows) && entry.depth() <= EXE_DEPTH {
                 exes.push((entry.path().to_path_buf(), dir_size(entry.path()), entry.depth()));
+                if !evidence.found() {
+                    scan_bundle(entry.path(), &evidence);
+                }
             }
             walker.skip_current_dir();
             continue;
@@ -267,6 +428,7 @@ pub fn inspect_folder(root: &Path) -> std::io::Result<FolderInspection> {
         if !entry.file_type().is_file() {
             continue;
         }
+        evidence.offer(game_marker(entry.path()));
         let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
         file_count += 1;
         total_bytes += size;
@@ -335,6 +497,17 @@ pub fn inspect_folder(root: &Path) -> std::io::Result<FolderInspection> {
     candidates.sort_by(|a, b| b.score.cmp(&a.score).then(a.relative.cmp(&b.relative)));
     candidates.truncate(MAX_CANDIDATES);
 
+    let looks_like_game = evidence.found()
+        || matches!(
+            package,
+            Some(PackageKind::Steam | PackageKind::MicrosoftGdk | PackageKind::XboxContainer)
+        )
+        || candidates
+            .iter()
+            .filter(|c| c.runnable && c.format == Some(Format::Pe))
+            .take(3)
+            .any(|c| loads_game_libraries(&c.path));
+
     let mut notes = Vec::new();
     let runnable = candidates.iter().any(|c| c.runnable);
     let installer = root_setup && root_bins > 0 && !candidates.iter().any(|c| c.runnable && c.score > 0);
@@ -389,6 +562,12 @@ pub fn inspect_folder(root: &Path) -> std::io::Result<FolderInspection> {
                 "None of the executables here can run on this computer's processor."
             },
         ));
+    } else if !looks_like_game && crate::TEST_BUILD.is_none() {
+        // Private test builds add any folder with a program, game or not, so they skip this.
+        notes.push(Note::new(
+            NoteLevel::Error,
+            "This folder doesn't look like a game. Starex found no game engine, game data or game libraries here, so it can't be added.",
+        ));
     } else if let Some(best) = candidates.iter().find(|c| c.runnable)
         && best.host == Some(HostSupport::Compat)
     {
@@ -416,7 +595,64 @@ pub fn inspect_folder(root: &Path) -> std::io::Result<FolderInspection> {
         has_manifest: root.join(MANIFEST_FILE).is_file(),
         file_count,
         total_bytes,
+        looks_like_game,
         notes,
+    })
+}
+
+fn is_game_dir(path: &Path) -> bool {
+    path.file_name()
+        .is_some_and(|n| GAME_DIRS.contains(&n.to_string_lossy().to_ascii_lowercase().as_str()))
+}
+
+fn game_marker(path: &Path) -> Option<Marker> {
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    let ext = path
+        .extension()
+        .map(|e| e.to_string_lossy().to_ascii_lowercase())
+        .unwrap_or_default();
+    let library = name.contains(".dll") || name.contains(".so") || name.ends_with(".dylib");
+    if CHROMIUM_FILES.contains(&name.as_str()) {
+        Some(Marker::Chromium)
+    } else if ext == "pak" {
+        Some(Marker::Pak)
+    } else if GAME_FILES.contains(&name.as_str())
+        || (library && GAME_LIBRARY_PREFIXES.iter().any(|p| name.starts_with(p)))
+        || (name.starts_with("goggame-") && ext == "info")
+        || GAME_EXTENSIONS.contains(&ext.as_str())
+    {
+        Some(Marker::Game)
+    } else {
+        None
+    }
+}
+
+/// A macOS app bundle holds its engine and data inside, where the main walk does not look.
+fn scan_bundle(bundle: &Path, evidence: &GameEvidence) {
+    for entry in WalkDir::new(bundle).max_depth(EXE_DEPTH).into_iter().flatten() {
+        if entry.file_type().is_dir() && is_game_dir(entry.path()) {
+            evidence.offer(Some(Marker::Game));
+        } else if entry.file_type().is_file() {
+            evidence.offer(game_marker(entry.path()));
+        }
+    }
+}
+
+/// Whether a Windows program loads libraries that only games use (controllers, game audio).
+fn loads_game_libraries(path: &Path) -> bool {
+    crate::pe::imports(path).is_ok_and(|dlls| {
+        dlls.iter().any(|dll| {
+            GAME_IMPORTS.iter().any(|g| {
+                if g.ends_with(".dll") {
+                    dll == g
+                } else {
+                    dll.starts_with(g)
+                }
+            })
+        })
     })
 }
 
@@ -563,7 +799,7 @@ fn score_candidate(
 }
 
 /// "grand_theft-auto.VI" -> "Grand Theft Auto VI".
-fn pretty_name(folder: &str) -> String {
+pub(crate) fn pretty_name(folder: &str) -> String {
     let cleaned = clean_release_name(folder);
     let source = if cleaned.trim().is_empty() {
         folder
@@ -653,6 +889,16 @@ fn clean_release_name(folder: &str) -> String {
     let numeric = |w: &str| !w.is_empty() && w.chars().all(|ch| ch.is_ascii_digit());
     while let Some(last) = words.last().copied() {
         let lower = last.to_ascii_lowercase();
+        // "Hollow Path-EMPRESS": a group glued to the last word by a hyphen.
+        if let Some((head, tail)) = last.rsplit_once('-')
+            && !head.is_empty()
+            && is_release_tag(tail)
+        {
+            if let Some(slot) = words.last_mut() {
+                *slot = head;
+            }
+            continue;
+        }
         if last == "-"
             || is_release_tag(&lower)
             || is_version(&lower)
@@ -708,7 +954,7 @@ fn is_year(word: &str) -> bool {
 }
 
 /// Reads `DefaultDisplayName` from a GDK `MicrosoftGame.config` without a full XML parser.
-fn gdk_display_name(config: &Path) -> Option<String> {
+pub(crate) fn gdk_display_name(config: &Path) -> Option<String> {
     let text = fs::read_to_string(config).ok()?;
     let key = "DefaultDisplayName=\"";
     let start = text.find(key)? + key.len();
@@ -869,6 +1115,172 @@ mod tests {
     }
 
     #[test]
+    fn rejects_folders_that_are_not_games() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("Some Tool");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("SomeTool.exe"), fake_pe(0x8664, 2)).unwrap();
+        fs::write(root.join("helper.dll"), [0u8; 64]).unwrap();
+        fs::write(root.join("readme.txt"), "hello").unwrap();
+
+        let found = inspect_folder(&root).unwrap();
+        assert!(found.candidates[0].runnable);
+        assert!(!found.looks_like_game);
+        assert!(
+            found
+                .notes
+                .iter()
+                .any(|n| n.level == NoteLevel::Error && n.text.contains("game")),
+            "{:?}",
+            found.notes
+        );
+    }
+
+    #[test]
+    fn accepts_engine_folders() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("Tiny Unity Game");
+        fs::create_dir_all(root.join("Tiny_Data")).unwrap();
+        fs::write(root.join("Tiny.exe"), fake_pe(0x8664, 2)).unwrap();
+        fs::write(root.join("UnityPlayer.dll"), [0u8; 64]).unwrap();
+        fs::write(root.join("Tiny_Data/globalgamemanagers"), [0u8; 64]).unwrap();
+
+        let found = inspect_folder(&root).unwrap();
+        assert!(found.looks_like_game);
+        assert!(
+            found.notes.iter().all(|n| n.level != NoteLevel::Error),
+            "{:?}",
+            found.notes
+        );
+
+        // Anti-cheat folders are skipped by the walk but still mark a game.
+        let other = dir.path().join("Shooter");
+        fs::create_dir_all(other.join("EasyAntiCheat")).unwrap();
+        fs::write(other.join("Shooter.exe"), fake_pe(0x8664, 2)).unwrap();
+        assert!(inspect_folder(&other).unwrap().looks_like_game);
+    }
+
+    /// Folders as cracked, repacked and ported games really come: each must be accepted as a
+    /// game, and the program Starex starts must be the game, not an uninstaller or crash reporter.
+    #[test]
+    fn accepts_cracked_repacked_and_ported_games() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut big = fake_pe(0x8664, 2);
+        big.resize(4 * 1024 * 1024, 0);
+        let small = fake_pe(0x8664, 2);
+        let write = |root: &Path, files: &[(&str, &[u8])]| {
+            for (name, bytes) in files {
+                let path = root.join(name);
+                fs::create_dir_all(path.parent().unwrap()).unwrap();
+                fs::write(path, bytes).unwrap();
+            }
+        };
+        let check = |root: &Path, program: &str| {
+            let found = inspect_folder(root).unwrap();
+            assert!(found.looks_like_game, "{} was not taken for a game", root.display());
+            let chosen = found
+                .candidates
+                .iter()
+                .find(|c| c.runnable)
+                .expect("a program to start");
+            assert!(
+                chosen.relative.replace('\\', "/").eq_ignore_ascii_case(program),
+                "{} starts {} instead of {program}",
+                root.display(),
+                chosen.relative
+            );
+        };
+
+        // A cracked Unity game: a Steam emulator beside the game, and Unity's crash handler.
+        let unity = dir.path().join("Hollow Path-EMPRESS");
+        write(
+            &unity,
+            &[
+                ("HollowPath.exe", &big),
+                ("UnityCrashHandler64.exe", &small),
+                ("HollowPath_Data/Plugins/x86_64/steam_api64.dll", b"x"),
+                ("steam_emu.ini", b"[Settings]"),
+            ],
+        );
+        check(&unity, "HollowPath.exe");
+
+        // An installed repack of an Unreal game that ships a Chromium-based browser (CEF), with
+        // the repacker's uninstaller and redistributables left in the folder.
+        let unreal = dir.path().join("Starfall Rebels [FitGirl Repack]");
+        write(
+            &unreal,
+            &[
+                ("Starfall.exe", &big),
+                ("Starfall/Binaries/Win64/Starfall-Win64-Shipping.exe", &small),
+                ("Starfall/Content/Paks/Starfall-Windows.pak", b"x"),
+                ("Engine/Binaries/ThirdParty/CEF3/Win64/libcef.dll", b"x"),
+                ("Engine/Binaries/ThirdParty/CEF3/Win64/icudtl.dat", b"x"),
+                ("unins000.exe", &small),
+                ("_Redist/vc_redist.x64.exe", &small),
+            ],
+        );
+        check(&unreal, "Starfall.exe");
+
+        // A game cracked with the Goldberg emulator: only its settings folder gives it away.
+        let goldberg = dir.path().join("Neon Drift");
+        write(
+            &goldberg,
+            &[
+                ("NeonDrift.exe", &big),
+                ("steam_settings/force_language.txt", b"english"),
+            ],
+        );
+        check(&goldberg, "NeonDrift.exe");
+
+        // Ports built from decompiled console games.
+        let harkinian = dir.path().join("Ship of Harkinian");
+        write(&harkinian, &[("soh.exe", &big), ("oot.o2r", b"x"), ("soh.o2r", b"x")]);
+        check(&harkinian, "soh.exe");
+
+        let sdl_port = dir.path().join("sm64 pc port");
+        write(
+            &sdl_port,
+            &[("sm64.us.f3dex2e.exe", &big), ("gamecontrollerdb.txt", b"# SDL")],
+        );
+        check(&sdl_port, "sm64.us.f3dex2e.exe");
+
+        let retro = dir.path().join("Sonic CD Decomp");
+        write(&retro, &[("RSDKv3.exe", &big), ("Data.rsdk", b"x")]);
+        check(&retro, "RSDKv3.exe");
+
+        // An RPG Maker MV game: built on NW.js, so it carries Chromium files too.
+        let rpg = dir.path().join("Moonlit Tale");
+        write(
+            &rpg,
+            &[
+                ("Game.exe", &big),
+                ("nw.dll", b"x"),
+                ("icudtl.dat", b"x"),
+                ("www/js/rpg_core.js", b"//"),
+            ],
+        );
+        check(&rpg, "Game.exe");
+    }
+
+    #[test]
+    fn tells_unreal_paks_from_chromium_paks() {
+        let dir = tempfile::tempdir().unwrap();
+        let app = dir.path().join("Chat App");
+        fs::create_dir_all(app.join("locales")).unwrap();
+        fs::write(app.join("ChatApp.exe"), fake_pe(0x8664, 2)).unwrap();
+        fs::write(app.join("icudtl.dat"), [0u8; 64]).unwrap();
+        fs::write(app.join("chrome_100_percent.pak"), [0u8; 64]).unwrap();
+        fs::write(app.join("locales/en-US.pak"), [0u8; 64]).unwrap();
+        assert!(!inspect_folder(&app).unwrap().looks_like_game);
+
+        let game = dir.path().join("Space Race");
+        fs::create_dir_all(game.join("SpaceRace/Content/Paks")).unwrap();
+        fs::write(game.join("SpaceRace.exe"), fake_pe(0x8664, 2)).unwrap();
+        fs::write(game.join("SpaceRace/Content/Paks/SpaceRace-Windows.pak"), [0u8; 64]).unwrap();
+        assert!(inspect_folder(&game).unwrap().looks_like_game);
+    }
+
+    #[test]
     fn pretty_names() {
         assert_eq!(pretty_name("grand_theft-auto.vi"), "Grand Theft Auto Vi");
         assert_eq!(pretty_name("DOOM Eternal"), "DOOM Eternal");
@@ -885,6 +1297,9 @@ mod tests {
         assert_eq!(pretty_name("Hades.II.MULTi12-ElAmigos"), "Hades II");
         assert_eq!(pretty_name("Prey (2017) [DODI Repack]"), "Prey");
         assert_eq!(pretty_name("Stardew_Valley_v1.6.9_GOG"), "Stardew Valley");
+        assert_eq!(pretty_name("Hollow Path-EMPRESS"), "Hollow Path");
+        assert_eq!(pretty_name("Hogwarts Legacy v1.0-RUNE"), "Hogwarts Legacy");
+        assert_eq!(pretty_name("Spider-Man Remastered"), "Spider-Man Remastered");
         // Names that are not release-style stay as they are.
         assert_eq!(pretty_name("Half-Life 2"), "Half-Life 2");
         assert_eq!(pretty_name("S.T.A.L.K.E.R. 2"), "S.T.A.L.K.E.R. 2");
