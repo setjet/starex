@@ -19,6 +19,11 @@ import type {
   ScanSummary,
   Runtime,
   Release,
+  FoundGame,
+  Store,
+  SteamAccount,
+  NewsItem,
+  Achievements,
 } from "./types";
 
 /** Typed wrappers over the Rust commands in `src-tauri/src/commands.rs`. */
@@ -55,12 +60,20 @@ export const api = {
   createShortcut: (id: string, place: "desktop" | "startMenu") => invoke<string>("create_shortcut", { id, place }),
   launchLink: (id: string) => invoke<string>("launch_link", { id }),
   takeLaunchRequest: () => invoke<string | null>("take_launch_request"),
-  fetchDetails: (id: string) => invoke<Game>("fetch_details", { id }),
   setBackdropImage: (source: string) => invoke<Settings>("set_backdrop_image", { source }),
   setOffline: (id: string, offline: boolean) => invoke<Game>("set_offline", { id, offline }),
   openDataDir: () => invoke<void>("open_data_dir"),
   openLink: (url: string) => invoke<void>("open_link", { url }),
   fetchChangelog: () => invoke<Release[]>("fetch_changelog"),
+  scanStores: (store?: Store) => invoke<FoundGame[]>("scan_stores", { store: store ?? null }),
+  storeStatus: () => invoke<string[]>("store_status"),
+  syncSteamPlaytime: () => invoke<number>("sync_steam_playtime"),
+  autoImportStores: () => invoke<Game[]>("auto_import_stores"),
+  importGames: (games: Omit<FoundGame, "inLibrary">[]) => invoke<Game[]>("import_games", { games }),
+  steamAccount: () => invoke<SteamAccount | null>("steam_account"),
+  steamNews: (id: string) => invoke<NewsItem[]>("steam_news", { id }),
+  steamAchievements: (id: string) => invoke<Achievements>("steam_achievements", { id }),
+  openSteamNews: (id: string, gid: string) => invoke<void>("open_steam_news", { id, gid }),
 };
 
 export const events = {
