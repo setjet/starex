@@ -3,8 +3,8 @@
 <h1>Starex</h1>
 
 <p>
-  A fast, open-source launcher for the games on your drive.<br>
-  Built in Rust & Free.
+  A fast, free launcher for the games on your drive.<br>
+  Built in Rust.
 </p>
 
 <!-- x-release-please-start-version -->
@@ -19,7 +19,7 @@
   <a href="#install"><img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-3a3a3a" alt="Windows, macOS and Linux"></a>
   <a href="https://www.rust-lang.org"><img src="https://img.shields.io/badge/built%20with-Rust-b7410e" alt="Built with Rust"></a>
   <a href="https://tauri.app"><img src="https://img.shields.io/badge/Tauri-2-24c8db" alt="Tauri 2"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-3a3a3a" alt="MIT License"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-PolyForm%20Strict-3a3a3a" alt="PolyForm Strict License"></a>
 </p>
 
 </div>
@@ -31,10 +31,15 @@
 
 ## What it does
 
-Point Starex at a folder of game files and it gives the game a home: banner art, a Play button
-and your play time. New to Starex? Read below to see how it works:
+Point Starex at a folder of game files, or bring in the games Steam and Epic Games installed, and
+it gives each game a home: banner art, a Play button and your play time. New to Starex? Read below
+to see how it works:
 
-- **Any game folder.** No store or account. Starex finds the right program to start.
+- **Any game folder.** No store or account. DRM-free, repacked, modded or ported: Starex finds the
+  right program to start and tells games apart from other apps.
+- **Steam and Epic Games.** Import the games those launchers installed, with the artwork they keep
+  on your computer, or let Starex add new ones each time it opens. Starex starts them through their
+  launcher and never changes their files or saves. Steam games show Steam's play time.
 - **Fast file checks.** Catches missing or changed files in seconds, with full BLAKE3 hashing
   when you want it.
 - **Virus scanning.** Your own antivirus checks a game's code before it is added.
@@ -42,12 +47,15 @@ and your play time. New to Starex? Read below to see how it works:
   [Ludusavi](https://github.com/mtkennerly/ludusavi-manifest), backs them up after every session
   and can mirror them to a cloud folder.
 - **Missing runtimes.** Detects and installs the Visual C++, DirectX and .NET runtimes a game needs.
-- **Artwork and details.** Art from [SteamGridDB](https://www.steamgriddb.com) and game info from
-  [IGDB](https://www.igdb.com), with a weekly activity chart.
+- **Artwork and activity.** Art from [SteamGridDB](https://www.steamgriddb.com), a weekly activity
+  chart, and achievements and news for Steam games.
+- **Big Picture.** A fullscreen mode for the couch, played with a controller or the keyboard.
+- **Quick search.** Press Ctrl+K to find a game, start it or jump anywhere.
+- **Your look.** Dark, light or following your system, with an accent colour and a backdrop.
 - **Fits your desktop.** Shortcuts, `starex://` launch links, Discord status, tray icon, global
   shortcut and one-switch offline mode.
 - **Cross-platform.** Windows, macOS and Linux (Windows games run through Wine), with signed
-  self-updates.
+  updates that download in the background and install when you restart.
 
 ## What it can and can't launch
 
@@ -64,11 +72,15 @@ Starex starts programs your computer can run. It does not decrypt, emulate or co
 
 Download Starex for your computer from the [latest release](https://github.com/setjet/starex/releases/latest):
 
+<!-- x-release-please-start-version -->
+
 | System | File |
 | --- | --- |
-| Windows 10 and 11 (64-bit) | `Starex_<version>_x64-setup.exe` |
-| macOS 11 or later (Intel and Apple silicon) | `Starex_<version>_universal.dmg` |
-| Linux (64-bit) | `Starex_<version>_amd64.AppImage` or `.deb` |
+| Windows 10 and 11 (64-bit) | [`Starex_0.1.0_x64-setup.exe`](https://github.com/setjet/starex/releases/download/v0.1.0/Starex_0.1.0_x64-setup.exe) |
+| macOS 11 or later (Intel and Apple silicon) | [`Starex_0.1.0_universal.dmg`](https://github.com/setjet/starex/releases/download/v0.1.0/Starex_0.1.0_universal.dmg) |
+| Linux (64-bit) | [`Starex_0.1.0_amd64.AppImage`](https://github.com/setjet/starex/releases/download/v0.1.0/Starex_0.1.0_amd64.AppImage) or [`.deb`](https://github.com/setjet/starex/releases/download/v0.1.0/Starex_0.1.0_amd64.deb) |
+
+<!-- x-release-please-end -->
 
 On Windows, Starex installs for your user only and needs no administrator rights. Your library,
 settings, artwork, baselines and save backups stay in Starex's data folder (`%APPDATA%\Starex`,
@@ -113,8 +125,8 @@ bun run lint
 
 | Part | Where | What |
 | --- | --- | --- |
-| Core | [`crates/starex-core`](crates/starex-core) | Library, folder inspection, program detection, manifests, verification, virus scanning, saves, launch. Plain Rust, no UI. |
-| App | [`src-tauri`](src-tauri) | [Tauri 2](https://tauri.app) shell: commands, play sessions, save backups, artwork, updates. |
+| Core | [`crates/starex-core`](crates/starex-core) | Library, folder inspection, program detection, Steam and Epic Games libraries, manifests, verification, virus scanning, saves, launch. Plain Rust, no UI. |
+| App | [`src-tauri`](src-tauri) | [Tauri 2](https://tauri.app) shell: commands, play sessions, save backups, artwork, Steam data, Discord status, updates. |
 | Interface | [`src`](src) | [SolidJS](https://www.solidjs.com) and plain CSS on one set of design tokens. |
 
 
@@ -137,4 +149,7 @@ you have the right to use any game you add to it.
 
 ## License
 
-[MIT](LICENSE). 
+Starex is source-available under the [PolyForm Strict License 1.0.0](LICENSE). You may use it for
+your own personal, non-commercial purposes. You may not sell it, use it commercially, share or
+re-upload copies, or publish changed versions of it.
+
