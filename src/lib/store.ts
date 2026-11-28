@@ -1,16 +1,16 @@
 import { batch, createMemo, createSignal } from "solid-js";
 import { createStore, produce, reconcile } from "solid-js/store";
-import { api, errorText, events } from "./api";
+import { api, errorText, events, fileUrl } from "./api";
 import { count, playtime } from "./format";
 import { toast } from "./toast";
-import type { Game, Runtime, ScanReport, Settings, TaskProgress, VerifyMode, VerifyReport } from "./types";
+import type { FoundGame, Game, Runtime, ScanReport, Settings, Store, TaskProgress, VerifyMode, VerifyReport } from "./types";
 import { checkForUpdates, loadVersion } from "./updater";
 
 const defaultSettings: Settings = {
   launchBehavior: "minimize",
   restoreOnExit: true,
   verifyBeforeLaunch: false,
-  checkForUpdates: true,
+  autoDownloadUpdates: true,
   librarySort: "recent",
   autoArtwork: true,
   steamgriddbKey: "",
@@ -24,14 +24,17 @@ const defaultSettings: Settings = {
   closeToTray: false,
   startWithSystem: false,
   globalShortcut: "Alt+Shift+S",
-  igdbClientId: "",
-  igdbClientSecret: "",
   backdrop: "none",
   backdropImage: "",
   backdropStrength: 60,
   accent: "blue",
+  theme: "dark",
   launchAnimation: true,
   welcomeSeen: false,
+  steamApiKey: "",
+  steamId: "",
+  autoImportStores: false,
+  removedStoreGames: [],
 };
 
 interface AppStore {
@@ -49,6 +52,11 @@ interface AppStore {
   hostOs: string;
   repository: string;
   discordBuiltin: boolean;
+  userName: string;
+  /** The number of a private test build; null for every normal build. */
+  testBuild: string | null;
+  /** Games from a launcher (Steam, Epic) that it no longer has installed. */
+  notInstalled: Record<string, boolean>;
 }
 
 export const [store, setStore] = createStore<AppStore>({
@@ -64,7 +72,105 @@ export const [store, setStore] = createStore<AppStore>({
   hostOs: "",
   discordBuiltin: false,
   repository: "https://github.com/setjet/starex",
+  userName: "",
+  testBuild: null,
+  notInstalled: {},
 });
+
+/** A game imported from a launcher (Steam, Epic). Starex only starts it and tracks play time. */
+export const isStoreGame = (game: Game) => !!game.source;
+
+/** All-time play time: Steam's for a Steam game when Steam has shared it, else Starex's own. */
+export const playtimeOf = (game: Game) => game.storePlaytime?.totalSecs ?? game.playtimeSecs;
+
+/** When the game was last played: the latest of Steam's record and Starex's own. */
+export const lastPlayedOf = (game: Game): number | null =>
+  Math.max(game.storePlaytime?.lastPlayed ?? 0, game.lastPlayed ?? 0) || null;
+
+/**
+ * The work Starex does when it opens, which the launch animation waits for: which launcher games
+ * are still installed, Steam's play time, newly installed launcher games (when that is on), and
+ * the artwork the first screens show. Reports progress as tasks finish. Returns the games added.
+ */
+export async function startupTasks(onProgress: (share: number) => void): Promise<Game[]> {
+  let added: Game[] = [];
+  const tasks = [
+    refreshInstallStatus(),
+    syncSteamPlaytime(),
+    autoImportStores().then((games) => {
+      added = games;
+    }),
+    preloadArtwork(),
+  ];
+  let done = 0;
+  onProgress(0);
+  await Promise.all(
+    tasks.map((task) =>
+      task
+        .catch((e) => console.warn("a startup task failed", e))
+        .finally(() => onProgress(++done / tasks.length)),
+    ),
+  );
+  return added;
+}
+
+/** Decodes the art the first screens show, so it appears at once instead of popping in. */
+async function preloadArtwork() {
+  const urls = new Set<string>();
+  const add = (path: string | null | undefined) => {
+    const url = fileUrl(path);
+    if (url) urls.add(url);
+  };
+  for (const game of store.games) {
+    add(game.artwork.cover);
+    add(game.artwork.icon);
+  }
+  const first = store.games.find((g) => g.id === selectedId()) ?? [...store.games].sort((a, b) => (lastPlayedOf(b) ?? 0) - (lastPlayedOf(a) ?? 0))[0];
+  if (first) {
+    add(first.artwork.banner);
+    add(first.artwork.logo);
+  }
+  if (store.settings.backdrop === "custom") add(store.settings.backdropImage);
+  await Promise.all(
+    [...urls].map(
+      (url) =>
+        new Promise<void>((resolve) => {
+          const image = new Image();
+          image.onload = image.onerror = () => resolve();
+          image.src = url;
+          // A slow or missing file never holds Starex up.
+          setTimeout(resolve, 4000);
+        }),
+    ),
+  );
+}
+
+/** Reads the play time Steam keeps for the library's Steam games, quietly. */
+export async function syncSteamPlaytime() {
+  if (!store.games.some((g) => g.source?.store === "steam")) return;
+  await api.syncSteamPlaytime().catch((e) => console.warn("Steam play time not read", e));
+}
+
+/** Asks which launcher games were uninstalled there, at start and whenever Starex comes back to the front. */
+/** With the setting on, adds games newly installed with Steam or Epic. Returns the ones added. */
+export async function autoImportStores(): Promise<Game[]> {
+  if (!store.settings.autoImportStores) return [];
+  try {
+    const added = await api.autoImportStores();
+    batch(() => added.forEach(upsert));
+    if (added.length > 0) void refreshInstallStatus();
+    return added;
+  } catch (e) {
+    console.warn("automatic import failed", e);
+    return [];
+  }
+}
+
+export async function refreshInstallStatus() {
+  if (!store.games.some(isStoreGame)) return;
+  const ids = await api.storeStatus().catch(() => null);
+  if (ids) setStore("notInstalled", reconcile(Object.fromEntries(ids.map((id) => [id, true]))));
+}
 
 // ---------------------------------------------------------------------------------------------
 // Navigation and dialogs
@@ -95,7 +201,8 @@ export function select(id: string | null) {
 export const [query, setQuery] = createSignal("");
 
 export type Dialog =
-  | { type: "add"; path?: string }
+  | { type: "add" }
+  | { type: "addFolder"; path?: string }
   | { type: "settings"; section?: SettingsSection }
   | { type: "properties"; id: string; tab?: PropertiesTab }
   | { type: "remove"; id: string }
@@ -104,7 +211,12 @@ export type Dialog =
   | { type: "runtimes"; id: string; runtimes: Runtime[] }
   | { type: "update" }
   | { type: "changelog" }
-  | { type: "welcome" };
+  | { type: "welcome" }
+  | { type: "import"; store: Store }
+  | { type: "palette" };
+
+/** Big Picture: the fullscreen, controller-friendly view. */
+export const [bigPicture, setBigPicture] = createSignal(false);
 
 export type PropertiesTab = "general" | "launch" | "saves" | "artwork";
 
@@ -159,8 +271,8 @@ export const visibleGames = createMemo(() => {
   return [...list].sort((a, b) => {
     if (a.favorite !== b.favorite) return a.favorite ? -1 : 1;
     if (sort === "name") return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
-    if (sort === "playtime") return b.playtimeSecs - a.playtimeSecs || a.name.localeCompare(b.name);
-    return (b.lastPlayed ?? b.addedAt) - (a.lastPlayed ?? a.addedAt);
+    if (sort === "playtime") return playtimeOf(b) - playtimeOf(a) || a.name.localeCompare(b.name);
+    return (lastPlayedOf(b) ?? b.addedAt) - (lastPlayedOf(a) ?? a.addedAt);
   });
 });
 
@@ -184,6 +296,8 @@ export async function init() {
       hostOs: boot.hostOs,
       discordBuiltin: boot.discordBuiltin,
       repository: boot.repository,
+      userName: boot.userName,
+      testBuild: boot.testBuild ?? null,
     });
     if (selectedId() && !boot.games.some((g) => g.id === selectedId())) select(null);
   });
@@ -207,6 +321,7 @@ export async function init() {
       );
       if (e.game) upsert(e.game);
       setSavesVersion((v) => v + 1);
+      if (e.game?.source?.store === "steam") setTimeout(() => void syncSteamPlaytime(), 90_000);
       const name = e.game?.name ?? "The game";
       if (e.exitHint) {
         toast(`${name} stopped with an error`, { tone: "warning", detail: e.exitHint, duration: 9000 });
@@ -216,18 +331,29 @@ export async function init() {
           detail: `It exited with code ${e.exitCode}. Verify its files or check its launch options.`,
         });
       } else if (e.seconds >= 60) {
-        toast(`Session ended · ${playtime(e.seconds)}`, { detail: name });
+        toast(`You played ${name} for ${playtime(e.seconds)}`, { detail: sessionSummary(e.game) });
       }
     }),
   ]);
+
+  window.addEventListener("focus", () => void refreshInstallStatus());
 
   // Starex was opened from a game shortcut or a starex:// link.
   const requested = await api.takeLaunchRequest().catch(() => null);
   if (requested) playFromShortcut(requested);
 
-  if (store.settings.checkForUpdates && !import.meta.env.DEV) {
-    setTimeout(() => void checkForUpdates(false), 3000);
+  // Starex looks for a new version at every start, and with the setting on downloads it too.
+  if (!import.meta.env.DEV && !store.testBuild) {
+    setTimeout(() => void checkForUpdates(false, store.settings.autoDownloadUpdates), 3000);
   }
+}
+
+/** "34h 2m in total · 3h 10m this week", for the toast when a session ends. */
+function sessionSummary(game: Game | null): string | undefined {
+  if (!game) return undefined;
+  const weekAgo = Date.now() / 1000 - 7 * 86400;
+  const week = game.history.filter((s) => s.start >= weekAgo).reduce((sum, s) => sum + (s.end - s.start), 0);
+  return `${playtime(playtimeOf(game))} in total · ${playtime(week)} this week`;
 }
 
 function upsert(game: Game) {
@@ -307,15 +433,6 @@ export async function createShortcut(id: string, place: "desktop" | "startMenu")
     });
   } catch (e) {
     toast("Could not create the shortcut", { tone: "danger", detail: errorText(e) });
-  }
-}
-
-export async function fetchDetails(id: string) {
-  try {
-    upsert(await api.fetchDetails(id));
-    toast("Game details updated", { tone: "success" });
-  } catch (e) {
-    toast("No details found", { tone: "warning", detail: errorText(e) });
   }
 }
 
@@ -455,6 +572,16 @@ export async function addGame(...args: Parameters<typeof api.addGame>) {
   upsert(game);
   select(game.id);
   return game;
+}
+
+/** Adds games found in other launchers. */
+/** Adds one game a launcher installed. Throws when it could not be added. */
+export async function importGame(found: FoundGame): Promise<Game> {
+  const { inLibrary: _, ...game } = found;
+  const [added] = await api.importGames([game]);
+  if (!added) throw new Error(`${found.name} could not be added.`);
+  upsert(added);
+  return added;
 }
 
 export async function removeGame(id: string) {
