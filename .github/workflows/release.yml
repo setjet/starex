@@ -86,6 +86,23 @@ jobs:
         with:
           bun-version: 1.4.2
       - run: bun install --frozen-lockfile
+      # release-please writes the notes on the GitHub release; latest.json (what the update popup
+      # reads) gets them only through releaseBody.
+      - name: Read release notes
+        id: notes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          {
+            echo "body<<STAREX_NOTES_EOF"
+            # The popup shows plain text: drop the version heading and commit links, use bullets.
+            gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body -q .body \
+              | sed -E '/^## /d; s/ \(\[[0-9a-f]{7,}\]\([^)]*\)\)$//; s/^### //; s/^\* /• /' \
+              | cat -s | sed '/./,$!d'
+            echo "STAREX_NOTES_EOF"
+          } >> "$GITHUB_OUTPUT"
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -94,6 +111,7 @@ jobs:
         with:
           tagName: ${{ needs.release-please.outputs.tag_name }}
           releaseName: Starex ${{ needs.release-please.outputs.tag_name }}
+          releaseBody: ${{ steps.notes.outputs.body }}
           args: ${{ matrix.args }}
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
