@@ -123,11 +123,6 @@
   opacity: 0.8;
 }
 
-.btn:focus-visible {
-  outline: 2px solid var(--sx-border-focus);
-  outline-offset: 2px;
-}
-
 /* Icon buttons */
 
 .icon-btn {
@@ -235,8 +230,6 @@
 }
 
 .input:focus {
-  border-color: rgba(255, 255, 255, 0.22);
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.05);
   outline: none;
 }
 
