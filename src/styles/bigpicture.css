@@ -1,0 +1,364 @@
+/* Big Picture: fullscreen, controller-friendly library ------------------------------------------ */
+
+.bp {
+  --bp-cover: clamp(140px, 11vw, 200px);
+  --bp-gap: clamp(16px, 1.4vw, 24px);
+  --bp-pad: clamp(40px, 5vw, 96px);
+
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto auto;
+  overflow: hidden;
+  background: var(--sx-bg-frame);
+  color: var(--sx-text-primary);
+  /* Entering: a dark cover fades over the desktop view (COVER_MS in BigPicture.tsx) and the window
+     goes fullscreen behind it. Everything inside waits, paused, until the window has settled. */
+  animation: fade-in 220ms var(--sx-ease-out) backwards;
+  user-select: none;
+}
+
+.bp:not([data-ready]) * {
+  animation-play-state: paused;
+}
+
+/* Leaving: the view fades to dark, the window leaves fullscreen behind it, then the dark cover
+   fades off the desktop view. */
+.bp[data-ready][data-leaving] > * {
+  animation: bp-out 200ms var(--sx-ease-out) forwards;
+}
+
+.bp[data-leaving="reveal"] {
+  animation: bp-out 220ms var(--sx-ease-out) forwards;
+}
+
+@keyframes bp-out {
+  to {
+    opacity: 0;
+  }
+}
+
+/* Then the art settles from slightly zoomed in, and the top bar, the game and the shelf follow in
+   turn. Only these elements stay mounted, so browsing never replays it. */
+.bp-scene {
+  position: absolute;
+  inset: 0;
+  animation: bp-enter 900ms var(--sx-ease-panel) backwards;
+}
+
+@keyframes bp-enter {
+  from {
+    opacity: 0;
+    transform: scale(1.04);
+  }
+}
+
+@keyframes bp-drop {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes bp-rise {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+    filter: blur(4px);
+  }
+}
+
+.bp-top {
+  animation: bp-drop 600ms var(--sx-ease-panel) 160ms backwards;
+}
+
+.bp-main {
+  animation: bp-rise 700ms var(--sx-ease-panel) 200ms backwards;
+}
+
+.bp-shelf {
+  animation: bp-rise 760ms var(--sx-ease-panel) 300ms backwards;
+}
+
+.bp-hints {
+  animation: fade-in 600ms var(--sx-ease-out) 440ms backwards;
+}
+
+.bp-backdrop {
+  position: absolute;
+  inset: 0;
+  animation: fade-in 600ms var(--sx-ease-out) both;
+}
+
+.bp-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.bp-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(13, 13, 13, 0.82) 0%, rgba(13, 13, 13, 0.35) 50%, rgba(13, 13, 13, 0.1) 100%),
+    linear-gradient(180deg, rgba(13, 13, 13, 0.3) 0%, rgba(13, 13, 13, 0) 30%, rgba(13, 13, 13, 0.7) 68%, #0d0d0d 100%);
+}
+
+.bp > :not(.bp-scene) {
+  position: relative;
+}
+
+.bp-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sx-space-8) var(--bp-pad) 0;
+}
+
+.bp-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sx-space-2-5);
+  font-size: var(--sx-text-2xl);
+  font-weight: var(--sx-weight-semibold);
+  letter-spacing: var(--sx-tracking-tight);
+}
+
+.bp-top-right {
+  display: flex;
+  align-items: center;
+  gap: var(--sx-space-6);
+}
+
+.bp-clock {
+  color: var(--sx-text-secondary);
+  font-size: var(--sx-text-2xl);
+  font-weight: var(--sx-weight-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+.bp-exit {
+  display: flex;
+  align-items: center;
+  gap: var(--sx-space-2);
+  border-radius: var(--sx-radius-pill);
+  background: var(--sx-glass);
+  padding: var(--sx-space-1-5) var(--sx-space-4) var(--sx-space-1-5) var(--sx-space-1-5);
+  color: var(--sx-text-secondary);
+  font-size: var(--sx-text-lg);
+  box-shadow: 0 0 0 1px var(--sx-glass-border) inset;
+  backdrop-filter: blur(12px);
+  transition: background var(--sx-duration-fast) ease;
+}
+
+.bp-exit:hover {
+  background: var(--sx-glass-hover);
+}
+
+.bp-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: var(--sx-space-3);
+  padding: 0 var(--bp-pad) var(--sx-space-8);
+}
+
+.bp-title {
+  max-width: min(900px, 70vw);
+  font-size: clamp(40px, 5vw, 76px);
+  font-weight: var(--sx-weight-bold);
+  letter-spacing: var(--sx-tracking-display);
+  line-height: 1.02;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.45);
+  animation: page-enter var(--sx-duration-hero) var(--sx-ease-panel) both;
+}
+
+.bp-logo-wrap {
+  display: block;
+  animation: page-enter var(--sx-duration-hero) var(--sx-ease-panel) both;
+}
+
+.bp-logo {
+  max-width: min(560px, 46vw);
+  max-height: clamp(100px, 16vh, 180px);
+  object-fit: contain;
+  object-position: left bottom;
+  filter: drop-shadow(0 2px 16px rgba(0, 0, 0, 0.4));
+}
+
+.bp-meta {
+  color: var(--sx-text-secondary);
+  font-size: var(--sx-text-2xl);
+}
+
+.bp-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--sx-space-3);
+  margin-top: var(--sx-space-3);
+}
+
+.bp-play {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sx-space-3);
+  height: 60px;
+  border-radius: var(--sx-radius-pill);
+  background: var(--sx-play);
+  padding: 0 var(--sx-space-10) 0 var(--sx-space-8);
+  color: var(--sx-play-text);
+  font-size: 20px;
+  font-weight: var(--sx-weight-semibold);
+  box-shadow: var(--sx-shadow-play);
+  transition:
+    background var(--sx-duration-fast) ease,
+    transform var(--sx-duration-slow) var(--sx-ease-spring);
+}
+
+.bp-play svg {
+  width: 22px;
+  height: 22px;
+  fill: currentColor;
+}
+
+.bp-play:hover:not(:disabled, .is-running) {
+  background: var(--sx-play-hover);
+}
+
+.bp-play:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.bp-play.is-running {
+  background: var(--sx-glass);
+  padding: 0 var(--sx-space-8);
+  color: var(--sx-text-primary);
+  box-shadow: 0 0 0 1px var(--sx-glass-border) inset;
+  backdrop-filter: blur(12px);
+}
+
+.bp-play-clock {
+  color: var(--sx-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.bp-stop {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sx-space-2);
+  height: 60px;
+  border-radius: var(--sx-radius-pill);
+  background: var(--sx-glass);
+  padding: 0 var(--sx-space-6);
+  font-size: var(--sx-text-xl);
+  font-weight: var(--sx-weight-medium);
+  box-shadow: 0 0 0 1px var(--sx-glass-border) inset;
+  backdrop-filter: blur(12px);
+}
+
+.bp-stop svg {
+  width: 16px;
+  height: 16px;
+}
+
+.bp-stop:hover {
+  background: var(--sx-glass-hover);
+}
+
+.bp-shelf {
+  /* The mask hides anything outside this box, so leave room for the selected cover, which grows
+     10% upward (covers are 2:3) and carries a ring and a soft shadow. */
+  margin-bottom: calc(-1 * var(--sx-space-4));
+  padding: calc(var(--sx-space-6) + var(--bp-cover) * 0.15 + 8px) var(--bp-pad) var(--sx-space-8);
+  /* Covers that scroll past the edges fade out instead of being cut; the fade ends just before
+     the selected cover's enlarged left edge. */
+  mask-image: linear-gradient(
+    90deg,
+    transparent 0,
+    #000 calc(var(--bp-pad) - var(--bp-cover) * 0.05 - 8px),
+    #000 calc(100% - 48px),
+    transparent 100%
+  );
+}
+
+.bp-track {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--bp-gap);
+  transition: transform 420ms var(--sx-ease-panel);
+}
+
+.bp-cover {
+  flex: 0 0 var(--bp-cover);
+  border-radius: var(--sx-radius-lg);
+  opacity: 0.55;
+  transform-origin: 50% 100%;
+  transition:
+    opacity var(--sx-duration-slow) ease,
+    transform 420ms var(--sx-ease-panel);
+}
+
+.bp-cover .game-cover {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+}
+
+.bp-cover:hover {
+  opacity: 0.8;
+}
+
+.bp-cover[data-active] {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+.bp-cover[data-active] .game-cover {
+  box-shadow:
+    0 0 0 3px var(--sx-text-primary),
+    0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.bp-cover[data-running] .game-cover {
+  box-shadow: 0 0 0 2px var(--sx-success) inset;
+}
+
+.bp-cover:focus-visible {
+  outline: none;
+}
+
+.bp-hints {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sx-space-6);
+  padding: var(--sx-space-4) var(--bp-pad) var(--sx-space-8);
+  color: var(--sx-text-muted);
+  font-size: var(--sx-text-lg);
+}
+
+.bp-hints > span {
+  display: flex;
+  align-items: center;
+  gap: var(--sx-space-2);
+}
+
+.bp-key {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  height: 28px;
+  border-radius: var(--sx-radius-pill);
+  background: rgba(255, 255, 255, 0.12);
+  padding: 0 var(--sx-space-1-5);
+  color: var(--sx-text-primary);
+  font-size: var(--sx-text-sm);
+  font-weight: var(--sx-weight-semibold);
+}
+
+.bp-key-wide {
+  padding: 0 var(--sx-space-2);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+}
