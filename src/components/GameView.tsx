@@ -21,6 +21,9 @@ import { generatedArt } from "../lib/art";
 import { bytes, clock, count, playtime, relativeTo, timeAgo } from "../lib/format";
 import {
   cancelTask,
+  isStoreGame,
+  lastPlayedOf,
+  playtimeOf,
   launch,
   patchGame,
   recordBaseline,
@@ -33,10 +36,10 @@ import {
 } from "../lib/store";
 import type { CheckStatus, Game, VerifyReport } from "../lib/types";
 import { ActivityPanel } from "./ActivityPanel";
-import { DetailsPanel } from "./DetailsPanel";
 import { FadeImage } from "./GameArt";
 import { LocalStatus } from "./LocalStatus";
 import { SavesPanel } from "./SavesPanel";
+import { SteamPanels } from "./SteamPanels";
 import { Button } from "./ui/Button";
 import { Menu } from "./ui/Menu";
 import { Progress, Spinner } from "./ui/Spinner";
@@ -52,11 +55,14 @@ export function GameView(props: { game: Game }) {
       <Hero game={game()} now={now()} />
       <div class="game-body">
         <StatsPanel game={game()} />
-        <Show when={game().details}>{(d) => <DetailsPanel details={d()} />}</Show>
         <ActivityPanel game={game()} />
-        <FilesPanel game={game()} />
-        <SavesPanel game={game()} />
-        <LaunchPanel game={game()} />
+        <SteamPanels game={game()} />
+        {/* A launcher's game keeps its files and saves to the launcher. */}
+        <Show when={!isStoreGame(game())}>
+          <FilesPanel game={game()} />
+          <SavesPanel game={game()} />
+          <LaunchPanel game={game()} />
+        </Show>
       </div>
     </div>
   );
@@ -124,8 +130,13 @@ function Hero(props: { game: Game; now: number }) {
                 </>
               )}
             </Match>
+            <Match when={store.notInstalled[g().id]}>
+              <button type="button" class="play-btn is-unavailable" disabled>
+                <span>Not installed</span>
+              </button>
+            </Match>
             <Match when={true}>
-              <div class="play-group" data-split={g().profiles.length > 0 || undefined}>
+              <div class="play-group" data-split={(!isStoreGame(g()) && g().profiles.length > 0) || undefined}>
                 <button
                   type="button"
                   class="play-btn"
@@ -138,7 +149,7 @@ function Hero(props: { game: Game; now: number }) {
                   </Show>
                   <span>{store.launching[g().id] ? "Starting" : "Play"}</span>
                 </button>
-                <Show when={g().profiles.length > 0}>
+                <Show when={!isStoreGame(g()) && g().profiles.length > 0}>
                   <Menu
                     align="start"
                     items={() => [
@@ -454,17 +465,28 @@ function StatsPanel(props: { game: Game }) {
       <div class="stats-main">
         <h2 id="stats-title" class="panel-eyebrow">
           Play time
+          <Show when={props.game.storePlaytime?.totalSecs != null}>
+            <span class="stat-source" title="Play time from Steam">
+              Steam
+            </span>
+          </Show>
         </h2>
-        <p class="stat-big">{playtime(props.game.playtimeSecs)}</p>
+        <p class="stat-big">{playtime(playtimeOf(props.game))}</p>
       </div>
       <dl class="stat-grid">
+        <Show when={props.game.storePlaytime?.recentSecs != null}>
+          <div>
+            <dt>Last 2 weeks</dt>
+            <dd>{playtime(props.game.storePlaytime?.recentSecs ?? 0)}</dd>
+          </div>
+        </Show>
         <div>
           <dt>Sessions</dt>
           <dd>{props.game.sessions.toLocaleString()}</dd>
         </div>
         <div>
           <dt>Last played</dt>
-          <dd>{props.game.lastPlayed ? timeAgo(props.game.lastPlayed) : "Never"}</dd>
+          <dd>{lastPlayedOf(props.game) ? timeAgo(lastPlayedOf(props.game) ?? 0) : "Never"}</dd>
         </div>
         <div>
           <dt>Added</dt>
@@ -509,6 +531,20 @@ function LaunchPanel(props: { game: Game }) {
           <div>
             <dt>Environment</dt>
             <dd class="muted">{count(props.game.env.length, "variable")}</dd>
+          </div>
+        </Show>
+        <Show when={props.game.preLaunch}>
+          <div>
+            <dt>Before launch</dt>
+            <dd class="mono" title={props.game.preLaunch}>
+              {props.game.preLaunch}
+            </dd>
+          </div>
+        </Show>
+        <Show when={props.game.runAsAdmin && store.hostOs === "windows"}>
+          <div>
+            <dt>Runs as</dt>
+            <dd>Administrator</dd>
           </div>
         </Show>
       </dl>
