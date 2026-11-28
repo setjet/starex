@@ -59,12 +59,7 @@ pub fn command(game: &Game, wine: Option<&Path>) -> Result<Command> {
         exe.clone()
     };
     let needs_wine = !cfg!(windows) && binary::probe(&target).is_ok_and(|b| b.format == Format::Pe);
-    let cwd = game
-        .working_dir
-        .clone()
-        .filter(|d| d.is_dir())
-        .or_else(|| exe.parent().map(Path::to_path_buf))
-        .unwrap_or_else(|| game.install_dir.clone());
+    let cwd = working_dir(game);
 
     let mut cmd = if needs_wine {
         let wine = wine.ok_or_else(|| {
@@ -87,6 +82,48 @@ pub fn command(game: &Game, wine: Option<&Path>) -> Result<Command> {
         cmd.env(var.key.trim(), &var.value);
     }
     Ok(cmd)
+}
+
+/// The folder a game starts in: its working folder if set, else its executable's folder.
+fn working_dir(game: &Game) -> PathBuf {
+    game.working_dir
+        .clone()
+        .filter(|d| d.is_dir())
+        .or_else(|| game.executable.parent().map(Path::to_path_buf))
+        .unwrap_or_else(|| game.install_dir.clone())
+}
+
+/// The game's pre-launch command, run by the system shell (`cmd` on Windows, `sh` elsewhere) in
+/// the game's working folder with its environment variables. `None` when it has none.
+pub fn pre_launch_command(game: &Game) -> Option<Command> {
+    let script = game.pre_launch.trim();
+    if script.is_empty() {
+        return None;
+    }
+    #[cfg(windows)]
+    let mut cmd = {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let mut cmd = Command::new("cmd");
+        // /S keeps everything between the outer quotes exactly as typed.
+        cmd.raw_arg(format!("/D /S /C \"{script}\""))
+            .creation_flags(CREATE_NO_WINDOW);
+        cmd
+    };
+    #[cfg(not(windows))]
+    let mut cmd = {
+        let mut cmd = Command::new("sh");
+        cmd.arg("-c").arg(script);
+        cmd
+    };
+    cmd.current_dir(working_dir(game))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    for var in &game.env {
+        cmd.env(var.key.trim(), &var.value);
+    }
+    Some(cmd)
 }
 
 /// Finds Wine: the path set in Settings if it exists, else `wine64` or `wine` on the PATH or in
@@ -131,5 +168,24 @@ mod tests {
         assert_eq!(split_args("  "), Vec::<String>::new());
         assert_eq!(split_args(r#"-name "" -x"#), ["-name", "", "-x"]);
         assert_eq!(split_args("'a b'c"), ["a bc"]);
+    }
+
+    #[test]
+    fn runs_the_pre_launch_command_in_the_game_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut game: Game = serde_json::from_value(serde_json::json!({
+            "id": "g", "name": "G", "installDir": dir.path(), "executable": dir.path().join("g.exe"), "addedAt": 0
+        }))
+        .unwrap();
+        assert!(pre_launch_command(&game).is_none());
+
+        game.pre_launch = r#"echo "two words" > "pre launch.txt""#.into();
+        let status = pre_launch_command(&game).unwrap().status().unwrap();
+        assert!(status.success());
+        let written = std::fs::read_to_string(dir.path().join("pre launch.txt")).unwrap();
+        assert!(written.contains("two words"), "{written}");
+
+        game.pre_launch = "exit 3".into();
+        assert_eq!(pre_launch_command(&game).unwrap().status().unwrap().code(), Some(3));
     }
 }
