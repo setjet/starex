@@ -9,9 +9,9 @@
 
 <!-- x-release-please-start-version -->
 <p>
-  <a href="https://github.com/setjet/starex/releases/download/v0.1.0/Starex_0.1.0_x64-setup.exe"><img src="https://img.shields.io/badge/Download%20for%20Windows-7c3aed?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0zIDNoOC41djguNUgzek0xMi41IDNIMjF2OC41aC04LjV6TTMgMTIuNWg4LjVWMjFIM3pNMTIuNSAxMi41SDIxVjIxaC04LjV6Ii8+PC9zdmc+" alt="Download Starex for Windows"></a>&nbsp;&nbsp;
-  <a href="https://github.com/setjet/starex/releases/download/v0.1.0/Starex_0.1.0_universal.dmg"><img src="https://img.shields.io/badge/Download%20for%20macOS-7c3aed?style=for-the-badge&logo=apple&logoColor=white" alt="Download Starex for macOS"></a>&nbsp;&nbsp;
-  <a href="https://github.com/setjet/starex/releases/download/v0.1.0/Starex_0.1.0_amd64.AppImage"><img src="https://img.shields.io/badge/Download%20for%20Linux-7c3aed?style=for-the-badge&logo=linux&logoColor=white" alt="Download Starex for Linux"></a>
+  <a href="https://github.com/setjet/starex/releases/download/v0.2.0/Starex_0.1.0_x64-setup.exe"><img src="https://img.shields.io/badge/Download%20for%20Windows-7c3aed?style=for-the-badge&logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZmlsbD0id2hpdGUiIGQ9Ik0zIDNoOC41djguNUgzek0xMi41IDNIMjF2OC41aC04LjV6TTMgMTIuNWg4LjVWMjFIM3pNMTIuNSAxMi41SDIxVjIxaC04LjV6Ii8+PC9zdmc+" alt="Download Starex for Windows"></a>&nbsp;&nbsp;
+  <a href="https://github.com/setjet/starex/releases/download/v0.2.0/Starex_0.1.0_universal.dmg"><img src="https://img.shields.io/badge/Download%20for%20macOS-7c3aed?style=for-the-badge&logo=apple&logoColor=white" alt="Download Starex for macOS"></a>&nbsp;&nbsp;
+  <a href="https://github.com/setjet/starex/releases/download/v0.2.0/Starex_0.1.0_amd64.AppImage"><img src="https://img.shields.io/badge/Download%20for%20Linux-7c3aed?style=for-the-badge&logo=linux&logoColor=white" alt="Download Starex for Linux"></a>
 </p>
 <!-- x-release-please-end -->
 
@@ -76,9 +76,9 @@ Download Starex for your computer from the [latest release](https://github.com/s
 
 | System | File |
 | --- | --- |
-| Windows 10 and 11 (64-bit) | [`Starex_0.1.0_x64-setup.exe`](https://github.com/setjet/starex/releases/download/v0.1.0/Starex_0.1.0_x64-setup.exe) |
-| macOS 11 or later (Intel and Apple silicon) | [`Starex_0.1.0_universal.dmg`](https://github.com/setjet/starex/releases/download/v0.1.0/Starex_0.1.0_universal.dmg) |
-| Linux (64-bit) | [`Starex_0.1.0_amd64.AppImage`](https://github.com/setjet/starex/releases/download/v0.1.0/Starex_0.1.0_amd64.AppImage) or [`.deb`](https://github.com/setjet/starex/releases/download/v0.1.0/Starex_0.1.0_amd64.deb) |
+| Windows 10 and 11 (64-bit) | [`Starex_0.2.0_x64-setup.exe`](https://github.com/setjet/starex/releases/download/v0.1.0/Starex_0.1.0_x64-setup.exe) |
+| macOS 11 or later (Intel and Apple silicon) | [`Starex_0.2.0_universal.dmg`](https://github.com/setjet/starex/releases/download/v0.1.0/Starex_0.1.0_universal.dmg) |
+| Linux (64-bit) | [`Starex_0.2.0_amd64.AppImage`](https://github.com/setjet/starex/releases/download/v0.1.0/Starex_0.1.0_amd64.AppImage) or [`.deb`](https://github.com/setjet/starex/releases/download/v0.1.0/Starex_0.1.0_amd64.deb) |
 
 <!-- x-release-please-end -->
 
