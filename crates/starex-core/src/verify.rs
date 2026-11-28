@@ -534,9 +534,12 @@ mod tests {
             history: Vec::new(),
             profiles: Vec::new(),
             active_profile: None,
-            details: None,
             show_on_discord: true,
             offline: false,
+            source: None,
+            store_playtime: None,
+            run_as_admin: false,
+            pre_launch: String::new(),
         }
     }
 
