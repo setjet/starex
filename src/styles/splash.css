@@ -1,10 +1,9 @@
 /*
- * Launch animation, about 1.85 s:
- *   0.06 s  the star rises in, the glow and wordmark fade up
- *   0.50 s  a streak of light shoots through the star
- *   0.72 s  impact: a flash, and the crack draws across the star
- *   1.00 s  the two halves part and fade
- *   1.42 s  the screen fades away to the app
+ * Launch loader (Splash.tsx):
+ *   0.1 s  "Hello, <name>" rises in, then "Hello," changes language every 1.5 s
+ *   0.5 s  "Starting..." and its bar fade in; the bar follows Starex's startup work
+ *   then   at least 5 s in and once the work is done ([data-leaving]): everything dissolves
+ *          (drifts up, blurs and fades), and the screen fades to the app
  * Nothing moves until the window is on screen ([data-play]).
  */
 
@@ -18,8 +17,8 @@
   pointer-events: none;
 }
 
-.splash[data-play] {
-  animation: splash-out 420ms var(--sx-ease-out) 1420ms forwards;
+.splash[data-leaving] {
+  animation: splash-out 420ms var(--sx-ease-out) 380ms forwards;
 }
 
 @keyframes splash-out {
@@ -29,220 +28,179 @@
 }
 
 .splash-stage {
+  display: grid;
+  justify-items: center;
+  gap: var(--sx-space-6);
+  padding: 0 var(--sx-space-8);
+}
+
+/* Leaving: the greeting, "Starting..." and the bar drift up, blur and fade together, the same
+   motion as the language swap, a little larger. */
+[data-leaving] .splash-stage {
+  animation: splash-dissolve 520ms var(--sx-ease-panel) forwards;
+}
+
+@keyframes splash-dissolve {
+  from {
+    opacity: 1;
+    transform: none;
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-8px);
+    filter: blur(6px);
+  }
+}
+
+/* Welcome ---------------------------------------------------------------------------------------- */
+
+.splash-welcome {
   position: relative;
   display: grid;
   justify-items: center;
-}
-
-.splash-glow {
-  position: absolute;
-  top: 40px;
-  width: 160px;
-  height: 160px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(109, 184, 255, 0.45), rgba(187, 102, 255, 0.18) 50%, transparent 72%);
-  filter: blur(14px);
+  width: 100%;
+  white-space: nowrap;
+  color: var(--sx-text-primary);
+  font-size: clamp(30px, 3.4vw, 46px);
+  font-weight: var(--sx-weight-semibold);
+  letter-spacing: var(--sx-tracking-display);
+  line-height: 1.15;
+  text-align: center;
   opacity: 0;
 }
 
-[data-play] .splash-glow {
-  animation: splash-glow 1450ms ease-out forwards;
+/* With a name, the line splits at the centre: the greeting ends there and the name starts there,
+   so the name stays put while the greeting changes length. */
+.splash-welcome[data-named] {
+  grid-template-columns: 1fr 1fr;
+  column-gap: 0.28em;
 }
 
-@keyframes splash-glow {
-  0% {
-    opacity: 0;
-    transform: scale(0.7);
-  }
-  30% {
-    opacity: 0.7;
-    transform: scale(1);
-  }
-  52% {
-    opacity: 1;
-    transform: scale(1.4);
-  }
-  75% {
-    opacity: 0.5;
-    transform: scale(1.2);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1.5);
-  }
+.splash-welcome[data-named] .splash-part-greeting {
+  justify-self: end;
 }
 
-.splash-art {
-  position: relative;
-  overflow: visible;
+.splash-welcome[data-named] .splash-part-name {
+  justify-self: start;
 }
 
-.splash-star,
-.splash-half,
-.splash-flash {
-  transform-box: view-box;
-  transform-origin: 12px 12px;
+[data-play] .splash-welcome {
+  animation: splash-rise 800ms var(--sx-ease-panel) 100ms forwards;
 }
 
-.splash-star {
+/* The language swap: transitions.dev "Text states swap". The old text slides up, blurs and fades;
+   the new one starts just below, blurred, and settles into place. */
+.splash-swap {
+  display: inline-block;
+  transform: translateY(0);
+  filter: blur(0);
+  opacity: 1;
+  transition:
+    transform 150ms ease-in-out,
+    filter 150ms ease-in-out,
+    opacity 150ms ease-in-out;
+  will-change: transform, filter, opacity;
+}
+
+.splash-swap.is-exit {
+  transform: translateY(-4px);
+  filter: blur(2px);
   opacity: 0;
 }
 
-[data-play] .splash-star {
-  animation: splash-star-in 520ms var(--sx-ease-spring) 60ms forwards;
+.splash-swap.is-enter-start {
+  transform: translateY(4px);
+  filter: blur(2px);
+  opacity: 0;
+  transition: none;
 }
 
-@keyframes splash-star-in {
+@keyframes splash-rise {
   from {
     opacity: 0;
-    transform: scale(0.6);
+    transform: translateY(10px);
+    filter: blur(6px);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: none;
+    filter: blur(0);
   }
 }
 
-/* The streak of light: a short dash travelling along a long diagonal line. */
-.splash-beam {
-  fill: none;
-  stroke: var(--sx-text-primary);
-  stroke-width: 0.5;
-  stroke-linecap: round;
-  stroke-dasharray: 18 100;
-  stroke-dashoffset: 18;
-  opacity: 0;
-  filter: drop-shadow(0 0 1.5px var(--sx-wash-blue));
-}
+/* Starting... ------------------------------------------------------------------------------------ */
 
-[data-play] .splash-beam {
-  animation: splash-beam 360ms cubic-bezier(0.5, 0, 0.2, 1) 500ms forwards;
-}
-
-@keyframes splash-beam {
-  0% {
-    opacity: 1;
-    stroke-dashoffset: 18;
-  }
-  85% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    stroke-dashoffset: -100;
-  }
-}
-
-.splash-flash {
+.splash-status {
+  display: grid;
+  justify-items: center;
+  gap: var(--sx-space-3);
   opacity: 0;
 }
 
-[data-play] .splash-flash {
-  animation: splash-flash 520ms ease-out 700ms;
+[data-play] .splash-status {
+  animation: splash-fade-in 600ms var(--sx-ease-out) 500ms forwards;
 }
 
-@keyframes splash-flash {
-  0% {
+@keyframes splash-fade-in {
+  from {
     opacity: 0;
-    transform: scale(0.3);
   }
-  25% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(1.6);
-  }
-}
-
-/* The crack: a dark fracture with light seeping out of it. */
-.splash-crack {
-  fill: none;
-  stroke: var(--sx-bg-frame);
-  stroke-width: 0.45;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 1;
-  stroke-dashoffset: 1;
-  filter: drop-shadow(0 0 0.6px var(--sx-wash-blue)) drop-shadow(0 0 2px var(--sx-wash-blue));
-}
-
-[data-play] .splash-crack {
-  animation:
-    splash-crack 260ms ease-out 720ms forwards,
-    splash-fade 360ms ease-in 1000ms forwards;
-}
-
-@keyframes splash-crack {
   to {
-    stroke-dashoffset: 0;
-  }
-}
-
-@keyframes splash-fade {
-  to {
-    opacity: 0;
-  }
-}
-
-[data-play] .splash-half-lower {
-  animation: splash-split-lower 620ms cubic-bezier(0.2, 0.7, 0.2, 1) 1000ms forwards;
-}
-
-[data-play] .splash-half-upper {
-  animation: splash-split-upper 620ms cubic-bezier(0.2, 0.7, 0.2, 1) 1000ms forwards;
-}
-
-@keyframes splash-split-lower {
-  60% {
     opacity: 1;
   }
-  to {
-    opacity: 0;
-    transform: translate(-2.6px, 2.6px) rotate(-7deg);
-  }
 }
 
-@keyframes splash-split-upper {
-  60% {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-    transform: translate(2.6px, -2.6px) rotate(7deg);
-  }
-}
-
-.splash-word {
-  margin-top: -28px;
-  color: var(--sx-text-secondary);
-  font-size: var(--sx-text-lg);
+.splash-starting {
+  color: var(--sx-text-muted);
+  font-size: var(--sx-text-md);
   font-weight: var(--sx-weight-medium);
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  opacity: 0;
+  letter-spacing: 0.02em;
 }
 
-[data-play] .splash-word {
-  animation: splash-word 1400ms var(--sx-ease-out) 120ms forwards;
+/* The dots light up one after another while it loads. */
+.splash-dot {
+  opacity: 0.25;
 }
 
-@keyframes splash-word {
-  0% {
-    opacity: 0;
-    transform: translateY(6px);
-    letter-spacing: 0.5em;
-  }
-  25% {
-    opacity: 0.9;
-    transform: translateY(0);
-    letter-spacing: 0.32em;
-  }
-  70% {
-    opacity: 0.9;
-  }
+[data-play] .splash-dot {
+  animation: splash-dot 1200ms ease-in-out 500ms infinite;
+}
+
+[data-play] .splash-dot:nth-child(2) {
+  animation-delay: 700ms;
+}
+
+[data-play] .splash-dot:nth-child(3) {
+  animation-delay: 900ms;
+}
+
+@keyframes splash-dot {
+  0%,
   100% {
-    opacity: 0;
+    opacity: 0.25;
   }
+  40% {
+    opacity: 1;
+  }
+}
+
+.splash-bar {
+  position: relative;
+  width: 180px;
+  height: 2px;
+  overflow: hidden;
+  border-radius: var(--sx-radius-pill);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.splash-bar-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(255, 255, 255, 0.85);
+  transform: scaleX(0);
+  transform-origin: left center;
+  /* Set from the loader's progress; the transition smooths each step. */
+  transition: transform 300ms linear;
 }
