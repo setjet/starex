@@ -1,0 +1,182 @@
+/*
+ * Light theme: Settings > Appearance > Light (or System on a light computer).
+ *
+ * Burn's light palette on Starex's tokens, then the few component colours that are not tokens.
+ * Game art (covers, banners, generated art) stays as it is, so the text drawn on it stays white.
+ * Big Picture and the launch animation keep the dark palette (tokens.css).
+ */
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --sx-bg-frame: #e8e8eb;
+  --sx-bg-canvas: #f5f5f6;
+  --sx-bg-sunken: #ececee;
+  --sx-bg-surface: #ffffff;
+  --sx-bg-raised: #ffffff;
+  --sx-bg-control: #ebebee;
+  --sx-bg-control-hover: #e2e2e6;
+  --sx-bg-control-active: #d9d9de;
+  --sx-bg-overlay: rgba(20, 20, 20, 0.2);
+  --sx-hover: rgba(20, 20, 20, 0.05);
+  --sx-pressed: rgba(20, 20, 20, 0.08);
+
+  --sx-glass: rgba(255, 255, 255, 0.72);
+  --sx-glass-hover: rgba(255, 255, 255, 0.88);
+  --sx-glass-border: rgba(20, 20, 20, 0.1);
+  --sx-glass-highlight: rgba(255, 255, 255, 0.6);
+
+  --sx-border: rgba(20, 20, 20, 0.07);
+  --sx-border-strong: rgba(20, 20, 20, 0.11);
+  --sx-border-focus: #8e8e93;
+  --sx-ring: rgba(20, 20, 20, 0.08);
+
+  --sx-text-primary: #141414;
+  --sx-text-secondary: #3a3a3c;
+  --sx-text-muted: #6b6b70;
+  --sx-text-dim: #8e8e93;
+  --sx-text-placeholder: #8e8e93;
+  --sx-text-on-light: #141414;
+
+  /* The most important action in a context is the dark pill on a light interface. */
+  --sx-action: #1c1c1e;
+  --sx-action-hover: #000000;
+  --sx-action-text: #ffffff;
+
+  --sx-success: #1fa85a;
+  --sx-success-soft: rgba(31, 168, 90, 0.12);
+  --sx-warning: #e07f00;
+  --sx-warning-soft: rgba(240, 138, 0, 0.14);
+  --sx-danger: #e8222d;
+  --sx-danger-text: #c0141d;
+  --sx-danger-soft: rgba(232, 34, 45, 0.12);
+  --sx-danger-soft-hover: rgba(232, 34, 45, 0.2);
+  --sx-info: #0a6fd6;
+  --sx-info-soft: rgba(0, 124, 247, 0.12);
+
+  --sx-shadow-card: 0 1px 2px rgba(20, 20, 20, 0.04);
+  --sx-shadow-raised: 0 4px 14px rgba(20, 20, 20, 0.08);
+  --sx-shadow-dialog: 0 8px 28px rgba(20, 20, 20, 0.12), 0 0 0 1px var(--sx-ring);
+
+  /* The game page's banner dissolves into the light page. */
+  --sx-scrim-hero: linear-gradient(180deg, rgba(245, 245, 246, 0) 35%, rgba(245, 245, 246, 0.75) 72%, #f5f5f6 100%);
+  --sx-scrim-side: linear-gradient(
+    90deg,
+    rgba(245, 245, 246, 0.8) 0%,
+    rgba(245, 245, 246, 0.4) 42%,
+    rgba(245, 245, 246, 0) 70%
+  );
+}
+
+/* Scrollbars */
+:root[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(20, 20, 20, 0.16) padding-box;
+}
+
+:root[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(20, 20, 20, 0.28) padding-box;
+}
+
+:root[data-theme="light"] .overlay-scrollbar-thumb {
+  background: rgba(20, 20, 20, 0.16);
+}
+
+:root[data-theme="light"] .overlay-scrollbar:hover .overlay-scrollbar-thumb,
+:root[data-theme="light"] .overlay-scrollbar[data-dragging] .overlay-scrollbar-thumb {
+  background: rgba(20, 20, 20, 0.28);
+}
+
+/* Switches: a white knob on both the grey (off) and the dark (on) track */
+:root[data-theme="light"] .switch-thumb,
+:root[data-theme="light"] .switch[data-checked] .switch-thumb {
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(20, 20, 20, 0.25);
+}
+
+/* The page card and dashed outlines */
+:root[data-theme="light"] .content {
+  box-shadow: 0 0 0 1px var(--sx-border);
+}
+
+:root[data-theme="light"] .sidebar-add {
+  border-color: rgba(20, 20, 20, 0.14);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :root[data-theme="light"] .sidebar-add:hover {
+    border-color: rgba(20, 20, 20, 0.24);
+  }
+
+  :root[data-theme="light"] .creator-pill:hover {
+    box-shadow: inset 0 0 0 1px rgba(20, 20, 20, 0.12);
+  }
+}
+
+:root[data-theme="light"] .dropzone {
+  border-color: rgba(20, 20, 20, 0.16);
+}
+
+:root[data-theme="light"] .dropzone:hover,
+:root[data-theme="light"] .dropzone:focus-visible {
+  border-color: rgba(20, 20, 20, 0.28);
+}
+
+:root[data-theme="light"] .drop-overlay {
+  background: rgba(20, 20, 20, 0.22);
+}
+
+:root[data-theme="light"] .drop-card {
+  border-color: rgba(20, 20, 20, 0.22);
+}
+
+:root[data-theme="light"] .swatch {
+  box-shadow: 0 0 0 1px rgba(20, 20, 20, 0.12) inset;
+}
+
+/* The logo tile on the empty library and in About */
+:root[data-theme="light"] .empty-mark,
+:root[data-theme="light"] .about-mark {
+  background: linear-gradient(180deg, #ffffff, #ececef);
+  box-shadow:
+    0 0 0 1px rgba(20, 20, 20, 0.08) inset,
+    0 4px 14px rgba(20, 20, 20, 0.08);
+}
+
+/* Game icons: the hairline sits on art, darker so it shows against the light page */
+:root[data-theme="light"] .game-icon {
+  box-shadow: 0 0 0 1px rgba(20, 20, 20, 0.08) inset;
+}
+
+/* Text drawn on game art stays white: the art (covers, generated art) is dark in every theme */
+:root[data-theme="light"] .game-icon-monogram,
+:root[data-theme="light"] .game-cover-title,
+:root[data-theme="light"] .onboard-cover-center {
+  color: #ffffff;
+}
+
+/* The game page's title and details sit on the light-washed banner: no dark halo behind them,
+   and logos (often white) get a tight shadow so they stay readable */
+:root[data-theme="light"] .hero-title,
+:root[data-theme="light"] .hero-meta-item {
+  text-shadow: none;
+}
+
+:root[data-theme="light"] .hero-logo {
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4)) drop-shadow(0 4px 16px rgba(0, 0, 0, 0.25));
+}
+
+/* Backdrops behind the library fade into the light page */
+:root[data-theme="light"] .backdrop-dim {
+  background: linear-gradient(180deg, rgba(245, 245, 246, 0.35) 0%, rgba(245, 245, 246, 0.82) 100%);
+}
+
+:root[data-theme="light"] .app[data-backdrop] .hero-scrim {
+  background:
+    linear-gradient(180deg, rgba(245, 245, 246, 0) 40%, rgba(245, 245, 246, 0.5) 100%),
+    var(--sx-scrim-side);
+}
+
+/* Epic's dark shield needs no light edge on a light card */
+:root[data-theme="light"] .add-choice-logo[data-dark] {
+  filter: none;
+}
