@@ -87,9 +87,12 @@ impl Library {
             history: Vec::new(),
             profiles: Vec::new(),
             active_profile: None,
-            details: None,
             show_on_discord: true,
             offline: false,
+            source: new.source,
+            store_playtime: None,
+            run_as_admin: false,
+            pre_launch: String::new(),
         };
         self.games.push(game.clone());
         self.save()?;
@@ -173,6 +176,12 @@ impl Library {
             if let Some(show) = patch.show_on_discord {
                 game.show_on_discord = show;
             }
+            if let Some(admin) = patch.run_as_admin {
+                game.run_as_admin = admin;
+            }
+            if let Some(command) = patch.pre_launch {
+                game.pre_launch = command.trim().to_owned();
+            }
         })
     }
 
@@ -233,6 +242,7 @@ mod tests {
             install_dir: dir.path().to_path_buf(),
             executable: exe,
             launch_args: "-windowed".into(),
+            source: None,
         };
         (dir, new)
     }
