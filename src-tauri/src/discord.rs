@@ -8,10 +8,10 @@ use std::io::{Read, Write};
 
 use serde_json::json;
 
-/// The Discord application Starex reports as. Maintainers: create an application named
-/// "Starex" at https://discord.com/developers/applications and put its ID here (see
-/// docs/RELEASING.md). Users can also set their own in Settings.
-pub const DEFAULT_APP_ID: &str = "";
+/// The Discord application Starex reports as: the maintainer's "Starex" application at
+/// https://discord.com/developers/applications. The ID is public, not a secret. Users can still
+/// set their own in Settings.
+pub const DEFAULT_APP_ID: &str = "1575991160806056006";
 
 const HANDSHAKE: u32 = 0;
 const FRAME: u32 = 1;
@@ -77,7 +77,9 @@ fn open_pipe(index: u8) -> Option<Box<dyn Pipe>> {
 impl Presence {
     /// Shows `game_name` as being played since `started_at` (Unix seconds). `None` when Discord
     /// is not running or refused the application ID.
-    pub fn show(app_id: &str, game_name: &str, started_at: u64) -> Option<Self> {
+    /// `image` is a web address of the game's own art; without one, Discord shows the Starex logo
+    /// (the application's `starex` art asset). Discord can only load images from the internet.
+    pub fn show(app_id: &str, game_name: &str, started_at: u64, image: Option<&str>) -> Option<Self> {
         let app_id = app_id.trim();
         if app_id.is_empty() {
             return None;
@@ -98,7 +100,10 @@ impl Presence {
                     "details": game_name,
                     "state": "Playing with Starex",
                     "timestamps": { "start": started_at },
-                    "assets": { "large_image": "starex", "large_text": "Starex" },
+                    "assets": match image {
+                        Some(url) => json!({ "large_image": url, "large_text": game_name }),
+                        None => json!({ "large_image": "starex", "large_text": "Starex" }),
+                    },
                     "instance": false
                 }
             }
@@ -142,7 +147,7 @@ mod tests {
         buffer.set_position(0);
         assert_eq!(read_frame(&mut buffer).unwrap()["evt"], "READY");
         assert!(
-            Presence::show("", "Game", 0).is_none(),
+            Presence::show("", "Game", 0, None).is_none(),
             "no application ID, no presence"
         );
     }
