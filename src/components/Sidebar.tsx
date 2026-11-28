@@ -1,4 +1,4 @@
-import { ArrowDownUp, LayoutGrid, Plus, Search, Settings, Star, X } from "./icons";
+import { ArrowDownUp, Gamepad2, LayoutGrid, Plus, Search, Settings, Star, X } from "./icons";
 import { For, Show } from "solid-js";
 import {
   openContextMenu,
@@ -6,6 +6,7 @@ import {
   saveSettings,
   select,
   selectedId,
+  setBigPicture,
   setDialog,
   setQuery,
   setShowHidden,
@@ -15,6 +16,7 @@ import {
 } from "../lib/store";
 import type { LibrarySort } from "../lib/types";
 import { updater } from "../lib/updater";
+import { versionLabel } from "../lib/version";
 import { GameIcon } from "./GameArt";
 import { IconButton } from "./ui/Button";
 import { Menu } from "./ui/Menu";
@@ -141,8 +143,11 @@ export function Sidebar(props: { searchRef: (el: HTMLInputElement) => void }) {
           <IconButton label="Settings (Ctrl+,)" size="sm" onClick={() => setDialog({ type: "settings" })}>
             <Settings />
           </IconButton>
+          <IconButton label="Big Picture mode" size="sm" onClick={() => setBigPicture(true)}>
+            <Gamepad2 />
+          </IconButton>
           <button type="button" class="sidebar-version" onClick={() => setDialog({ type: "settings", section: "updates" })}>
-            Starex {updater.appVersion()}
+            Starex {versionLabel()}
             <Show when={updater.available()}>
               <span class="sidebar-version-dot" aria-label="Update available" />
             </Show>
