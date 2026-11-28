@@ -18,12 +18,21 @@ pub struct Paths {
     pub savedb: PathBuf,
 }
 
+/// `Starex`, or `Starex Test` for a private test build, which keeps a library of its own.
+fn data_folder_name() -> &'static str {
+    if starex_core::TEST_BUILD.is_some() {
+        "Starex Test"
+    } else {
+        "Starex"
+    }
+}
+
 impl Paths {
     fn new() -> Self {
         let root = std::env::var_os("STAREX_DATA_DIR")
             .map(PathBuf::from)
-            .or_else(|| dirs::data_dir().map(|d| d.join("Starex")))
-            .unwrap_or_else(|| PathBuf::from("Starex"));
+            .or_else(|| dirs::data_dir().map(|d| d.join(data_folder_name())))
+            .unwrap_or_else(|| PathBuf::from(data_folder_name()));
         Self {
             library: root.join("library.json"),
             settings: root.join("settings.json"),
